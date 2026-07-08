@@ -1,0 +1,1553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Trackkin — Content Forge</title>
+<style>
+  :root{
+    --bg:#f3ede3; --paper:#fdfbf7; --surface:#faf5ec; --ink:#1e2824;
+    --green:#305f4d; --green-soft:#dfeae2; --rule:#d5c8b2; --rule-soft:#e2d7c2;
+    --muted:#6d7269; --danger:#b45a36; --warn:#b07d1a;
+    --c-common:#8a8377; --c-uncommon:#4f8c5c; --c-rare:#2f73b0; --c-epic:#8a4fc4;
+    --c-legendary:#d98b3c; --c-mythic:#c2185b; --c-celestial:#00acc1;
+  }
+  *{box-sizing:border-box}
+  .cov-table{border-collapse:collapse; width:100%; font-size:13px; margin-top:4px;}
+  .cov-table th,.cov-table td{border:1px solid var(--rule-soft); padding:6px 8px; text-align:center; white-space:nowrap;}
+  .cov-table th{background:var(--surface); color:var(--muted); font-weight:700;}
+  .cov-table td.cat{text-align:left; font-weight:700; color:var(--ink); background:var(--surface);}
+  .cov-ok{color:var(--green); font-weight:800;}
+  .cov-gap{color:var(--danger); background:rgba(180,90,54,.10);}
+  .chips{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px;}
+  button.chip.sel{background:var(--green); color:#fff; border-color:var(--green);}
+  .group-head{font-weight:800; color:var(--green); margin:14px 0 6px; font-size:12px; letter-spacing:.5px; text-transform:uppercase;}
+  .group-head:first-child{margin-top:0;}
+  .worldwrap{overflow:auto; max-height:72vh; border:1px solid var(--rule-soft); border-radius:12px; background:var(--surface);}
+  .worldnode{box-sizing:border-box; background:var(--paper); border:2px solid var(--rule); border-radius:10px; padding:4px 8px; cursor:grab; user-select:none; box-shadow:0 2px 6px rgba(0,0,0,.10); touch-action:none; text-align:center; overflow:hidden;}
+  .worldnode.sel{box-shadow:0 0 0 3px var(--green); border-color:var(--green);}
+  .wn-name{font-weight:800; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .wn-sub{font-size:10px; color:var(--muted);}
+  .legend{display:flex; flex-wrap:wrap; gap:12px; margin:6px 0 10px;}
+  .legend .dot{display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:5px; vertical-align:middle;}
+  body{margin:0; font-family:'Segoe UI',system-ui,sans-serif; color:var(--ink); background:var(--bg); line-height:1.4;}
+  header{padding:16px 24px; border-bottom:1px solid var(--rule); background:var(--paper); display:flex; align-items:baseline; gap:14px; flex-wrap:wrap;}
+  header h1{margin:0; font-size:25px; font-weight:700;}
+  header h1 em{color:var(--green); font-style:italic; font-weight:500;}
+  header .hint{color:var(--muted); font-size:13px;}
+  /* tabs */
+  nav.tabs{display:flex; gap:4px; padding:0 20px; background:var(--paper); border-bottom:1px solid var(--rule); flex-wrap:wrap;}
+  nav.tabs button{background:transparent; color:var(--muted); border:none; border-bottom:3px solid transparent; border-radius:0; padding:11px 16px; font-weight:700; font-size:14px;}
+  nav.tabs button.active{color:var(--green); border-bottom-color:var(--green);}
+  nav.tabs .badge{display:inline-block; min-width:18px; padding:0 5px; margin-left:6px; border-radius:999px; background:var(--green-soft); color:var(--green); font-size:11px; text-align:center;}
+  nav.tabs .badge.err{background:#f3d9cf; color:var(--danger);}
+  .wrap{display:flex; gap:20px; padding:20px; align-items:flex-start; flex-wrap:wrap;}
+  .col{flex:1 1 460px; min-width:340px;}
+  section.tabpane{display:none;} section.tabpane.active{display:block;}
+  .card{background:var(--paper); border:1px solid var(--rule-soft); border-radius:14px; padding:16px 18px; margin-bottom:16px; box-shadow:0 4px 14px rgba(0,0,0,.04);}
+  .card h2{margin:0 0 12px; font-size:15px; letter-spacing:.5px; text-transform:uppercase; color:var(--green); display:flex; align-items:center; gap:8px;}
+  label{display:block; font-size:12px; font-weight:700; color:var(--muted); margin:10px 0 4px;}
+  input,select,textarea{width:100%; padding:8px 10px; border:1px solid var(--rule); border-radius:8px; font:inherit; background:#fff; color:var(--ink);}
+  input:focus,select:focus,textarea:focus{outline:none; border-color:var(--green);}
+  .row{display:flex; gap:10px;} .row>*{flex:1;}
+  .idline{font-size:11px; color:var(--muted); margin-top:4px;} .idline code{background:#eee; padding:1px 5px; border-radius:4px; color:var(--ink);}
+  .idline.bad code{background:#f3d9cf; color:var(--danger);}
+  button{font:inherit; font-weight:700; cursor:pointer; border:none; border-radius:8px; padding:9px 14px; background:var(--green); color:#fff;}
+  button.ghost{background:transparent; color:var(--green); border:1px solid var(--green);}
+  button.sm{padding:5px 9px; font-size:12px;}
+  button.danger{background:transparent; color:var(--danger); border:1px solid var(--danger);}
+  button:disabled{opacity:.4; cursor:not-allowed;}
+  .sub-row{border:1px solid var(--rule-soft); border-radius:10px; padding:10px; margin-bottom:8px; background:var(--surface); display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+  .sub-row .grow{flex:1; min-width:120px;}
+  .boost-row{border:1px solid var(--rule-soft); border-radius:10px; padding:10px; margin-bottom:8px; background:var(--surface);}
+  .boost-row .top{display:flex; gap:8px; align-items:center; margin-bottom:8px;} .boost-row .top select{flex:1;}
+  .unit-tag{font-size:11px; font-weight:800; color:var(--muted); white-space:nowrap;}
+  .rarity-grid{display:grid; grid-template-columns:repeat(7,1fr); gap:6px;}
+  .rarity-grid .cell{display:flex; flex-direction:column; gap:2px;}
+  .rarity-grid .cell span{font-size:9px; font-weight:800; text-align:center; letter-spacing:.3px;}
+  .rarity-grid input{padding:5px 4px; text-align:center; font-size:13px;}
+  .r0{color:var(--c-common)} .r1{color:var(--c-uncommon)} .r2{color:var(--c-rare)} .r3{color:var(--c-epic)}
+  .r4{color:var(--c-legendary)} .r5{color:var(--c-mythic)} .r6{color:var(--c-celestial)}
+  .listitem{border:1px solid var(--rule-soft); border-left:5px solid var(--green); border-radius:10px; padding:10px 12px; margin-bottom:8px; background:var(--surface); display:flex; gap:10px; align-items:flex-start;}
+  .listitem .body{flex:1; min-width:0;}
+  .listitem .name{font-weight:800; font-size:15px;}
+  .listitem .meta{font-size:12px; color:var(--muted); margin:2px 0 6px;}
+  .listitem .acts{display:flex; gap:6px; margin-top:6px;}
+  .pill{display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; background:var(--green-soft); color:var(--green); margin:0 4px 4px 0;}
+  .empty{color:var(--muted); font-style:italic; padding:8px 0;}
+  details{margin-top:8px;} summary{cursor:pointer; font-weight:700; color:var(--green); font-size:13px;}
+  .help{font-size:12px; color:var(--muted);} .help code{background:#eee; padding:1px 4px; border-radius:4px;}
+  textarea.code{font-family:ui-monospace,Consolas,monospace; font-size:12px; min-height:200px; white-space:pre;}
+  .bar{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;}
+  /* icon picker */
+  .icon-chip{width:46px; height:46px; min-width:46px; border-radius:10px; border:1px solid var(--rule); display:flex; align-items:center; justify-content:center; font-size:24px; cursor:pointer; color:#fff; font-weight:800; user-select:none;}
+  .icon-pop{border:1px solid var(--rule); border-radius:10px; padding:10px; margin-top:8px; background:#fff;}
+  .emoji-grid{display:grid; grid-template-columns:repeat(10,1fr); gap:3px; max-height:130px; overflow:auto;}
+  .emoji-grid button{background:var(--surface); color:var(--ink); padding:4px; font-size:18px; border:1px solid transparent;}
+  .emoji-grid button:hover{border-color:var(--green);}
+  .swatches{display:flex; gap:5px; flex-wrap:wrap; margin-top:8px;}
+  .swatch{width:22px; height:22px; border-radius:6px; cursor:pointer; border:2px solid #fff; box-shadow:0 0 0 1px var(--rule);}
+  .swatch.sel{box-shadow:0 0 0 2px var(--ink);}
+  /* large optional artwork picker (150×150) */
+  .img-box{width:150px; height:150px; min-width:150px; border:1px dashed var(--rule); border-radius:12px; display:flex; align-items:center; justify-content:center; background:var(--surface); overflow:hidden;}
+  .img-thumb{width:44px; height:44px; min-width:44px; border-radius:8px; border:1px solid var(--rule-soft); object-fit:contain; background:#fff;}
+  /* validation */
+  .val-line{font-size:12.5px; padding:6px 8px; border-radius:8px; margin-bottom:6px; background:var(--surface);}
+  .val-line.error{border-left:4px solid var(--danger);} .val-line.warn{border-left:4px solid var(--warn);}
+  .val-ok{color:var(--green); font-weight:700;}
+  .odds-grid{display:grid; grid-template-columns:repeat(7,1fr); gap:5px; margin-top:6px;}
+  .odds-grid .cell{text-align:center; font-size:10px; background:var(--surface); border-radius:6px; padding:4px 2px;}
+  .odds-grid .cell b{display:block; font-size:11px;}
+</style>
+</head>
+<body>
+<header>
+  <h1>Trackkin <em>Content Forge</em></h1>
+  <span class="hint">Author materials, items &amp; actions → download <code>content.json</code> → the game loads it.</span>
+  <span id="syncbar" style="margin-left:auto;font-size:12px;padding:4px 10px;border-radius:8px;background:#2a2620;color:#c9c2b4;white-space:nowrap" title="Cloud sync status">☁ sync off</span>
+</header>
+
+<nav class="tabs" id="tabs"></nav>
+
+<div class="wrap" id="root"></div>
+
+<script>
+/* ============================================================================
+   Trackkin Content Forge — single-file, offline content authoring tool.
+   Keep the vocab below in sync with the game (lib/balance.dart, lib/models.dart).
+============================================================================ */
+
+// ── Game vocabulary ─────────────────────────────────────────────────────────
+const RARITIES = ['Common','Uncommon','Rare','Epic','Legendary','Mythic','Celestial'];
+const RKEYS    = RARITIES.map(r=>r.toLowerCase());
+
+// Equipment slots + one tool slot per skill (tool slots feed actions' "tool required").
+const SLOTS   = ['head','body','legs','boots','gloves','mainHand','offHand','necklace','ring1','ring2','cape','banner',
+  'axe','pickaxe','fishingRod','bow','sickle','chisel','hammer','tongs','ladle','tinderbox','wand'];
+const SLOT_LABELS = {
+  head:'Head',body:'Body',legs:'Legs',boots:'Boots',gloves:'Gloves',mainHand:'Main Hand',offHand:'Off-Hand',
+  necklace:'Necklace',ring1:'Ring 1',ring2:'Ring 2',cape:'Cape',banner:'Banner',
+  axe:'Axe (Woodcutting)',pickaxe:'Pickaxe (Mining)',fishingRod:'Fishing Rod (Fishing)',bow:'Bow (Hunting)',
+  sickle:'Sickle (Gathering)',chisel:'Chisel (Carving)',hammer:'Hammer (Smithing)',tongs:'Tongs (Smelting)',
+  ladle:'Ladle (Cooking)',tinderbox:'Tinderbox (Firemaking)',wand:'Wand (Enchanting)',
+};
+const SLOT_GROUPS = [
+  {label:'Equipment', slots:['head','body','legs','boots','gloves','mainHand','offHand','necklace','ring1','ring2','cape','banner']},
+  {label:'Tools',     slots:['axe','pickaxe','fishingRod','bow','sickle','chisel','hammer','tongs','ladle','tinderbox','wand']},
+];
+// Which skill each tool slot serves (for action "tool required" matching, later wiring).
+const TOOL_SKILL = {axe:'woodcut',pickaxe:'mining',fishingRod:'fishing',bow:'hunting',sickle:'gathering',chisel:'carving',hammer:'smithing',tongs:'smelting',ladle:'cooking',tinderbox:'firemake',wand:'enchanting'};
+const SOURCES = ['craftingBench','carvingBench','shop','drop','none'];
+// Skills, matching Balance.allSkills.
+const SKILLS  = [
+  {id:'woodcut',name:'Woodcutting'},{id:'cooking',name:'Cooking'},{id:'enchanting',name:'Enchanting'},
+  {id:'gathering',name:'Gathering'},{id:'carving',name:'Carving'},{id:'fishing',name:'Fishing'},
+  {id:'hunting',name:'Hunting'},{id:'firemake',name:'Firemaking'},{id:'mining',name:'Mining'},
+  {id:'smelting',name:'Smelting'},{id:'smithing',name:'Smithing'},
+];
+// World biomes (match Balance biome keys) + facilities (match FacilityType).
+const BIOMES = ['forest','beach','sea','swamp','city','highland','snow','ember'];
+const FACILITIES = [
+  {key:'shop',name:'Shop'},{key:'bank',name:'Bank'},{key:'craftingBench',name:'Crafting Bench'},
+  {key:'carvingBench',name:'Carving Bench'},{key:'hatchery',name:'Hatchery'},
+];
+
+// Boosts: key must match the game's ItemStat. ◇ = forward-looking (stored now).
+const BOOSTS = [
+  {key:'stepDiscount',label:'Step Cost −%',unit:'percent',active:true},
+  {key:'craftDiscount',label:'Craft Cost −%',unit:'percent',active:true},
+  {key:'kinXpBonus',label:'Kin XP +%',unit:'percent',active:true},
+  {key:'playerXpBonus',label:'Player XP +%',unit:'percent',active:true},
+  {key:'gatherYield',label:'Gather Yield +%',unit:'percent',active:true},
+  {key:'doubleDrop',label:'Double Drop +%',unit:'percent',active:true},
+  {key:'tierUp',label:'Tier-Up Chance +%',unit:'percent',active:true},
+  {key:'fireEfficiency',label:'Fire Efficiency +%',unit:'percent',active:true},
+  {key:'luck',label:'Luck +%',unit:'percent',active:true},
+  {key:'craftRarity',label:'Crafting Outcome +%',unit:'percent',active:true},
+  {key:'resourceValue',label:'Resource Value +%',unit:'percent',active:true},
+  {key:'stamina',label:'Stamina +%',unit:'percent',active:true},
+  {key:'eggSpeed',label:'Egg Hatch Speed +%',unit:'percent',active:true},
+  {key:'passiveQuality',label:'Passive Luck +%',unit:'percent',active:true},
+  {key:'queueSlots',label:'Queue Slots +N',unit:'flat',active:true},
+  {key:'attack',label:'Attack +N',unit:'flat',active:false},
+  {key:'defense',label:'Defense +N',unit:'flat',active:false},
+  {key:'health',label:'Health +N',unit:'flat',active:false},
+  {key:'critChance',label:'Crit Chance +%',unit:'percent',active:false},
+  {key:'critDamage',label:'Crit Damage +%',unit:'percent',active:false},
+  {key:'dodge',label:'Dodge +%',unit:'percent',active:false},
+  {key:'lifesteal',label:'Lifesteal +%',unit:'percent',active:false},
+  {key:'moveSpeed',label:'Move Speed +%',unit:'percent',active:false},
+  {key:'magicFind',label:'Magic Find +%',unit:'percent',active:false},
+  // Tool modifiers (forward-looking; effects wired later). Step efficiency is
+  // the existing 'stepDiscount' (Step Cost −%).
+  {key:'skillXp',label:'Skill XP +%',unit:'percent',active:false},
+  {key:'findRare',label:'Find Rare +%',unit:'percent',active:false},
+];
+const BOOST_BY_KEY = Object.fromEntries(BOOSTS.map(b=>[b.key,b]));
+
+// Power "weight" per unit of each stat (per +1 flat, or per +1% for percents).
+// This is what lets two items share a similar TOTAL impact while distributing
+// it differently, so they FEEL different instead of being a flat numbers race.
+// These are first-pass guesses — tune them when you balance for real.
+const STAT_WEIGHTS = {
+  // Combat — flat
+  attack:1.0, defense:0.8, health:0.15, queueSlots:8,
+  // Combat — percent (per 1%)
+  critChance:1.5, critDamage:0.35, dodge:1.6, lifesteal:1.2, moveSpeed:0.6, magicFind:0.6,
+  // Tool modifiers — percent (per 1%)
+  skillXp:1.0, findRare:1.2,
+  // Utility / idle — percent (per 1%)
+  stepDiscount:1.0, craftDiscount:1.0, kinXpBonus:0.8, playerXpBonus:0.8, gatherYield:1.0,
+  doubleDrop:1.2, tierUp:1.2, fireEfficiency:0.8, luck:1.0, craftRarity:1.2,
+  resourceValue:0.8, stamina:0.8, eggSpeed:0.6, passiveQuality:0.8,
+};
+const statWeight = (k)=> (STAT_WEIGHTS[k]!=null ? STAT_WEIGHTS[k] : 1);
+
+// Per-tier stat growth used by the "derive" helper. Two models:
+//  • compound: each tier ×TIER_FACTOR (constant %; early gaps small in absolute).
+//  • flat: each tier adds TIER_LINEAR_K × the tier-1 base (constant absolute;
+//    early tiers feel huge, late tiers gentle). value(T)=base×(1+K·(T-1)).
+const TIER_FACTOR = 7/6;          // +16.67%/tier (compound)
+const TIER_LINEAR_K = 0.6;        // +60% of base per tier (flat) — your example
+
+// Rarity stat curve — a GUIDELINE so hand-authored items don't drift into
+// broken territory. Per-grade bonus starts at 6% and accelerates ×1.04 each
+// grade (6.00, 6.24, 6.49, 6.75, 7.02, 7.30%). Cumulative ×1 → ×1.47 celestial.
+const RARITY_STEP0 = 0.06, RARITY_ACCEL = 1.04;
+const RARITY_MULT = (()=>{ const out=[1]; let m=1, s=RARITY_STEP0; for(let i=0;i<6;i++){ m*=(1+s); out.push(Math.round(m*1e6)/1e6); s*=RARITY_ACCEL; } return out; })();
+// => [1, 1.06, 1.126144, 1.199, 1.280, 1.370, 1.470]
+
+// Curated emoji palette for icons (no assets needed).
+const EMOJI = ('🪵 🪨 ⛏️ 🔨 ⚒️ 🪓 🗡️ 🛡️ 🏹 🪤 🔥 💎 🪙 💰 📜 🧪 ⚗️ 🔮 🧿 🪶 '+
+  '🌿 🍃 🍀 🌸 🌼 🌙 ⭐ ✨ 🌟 💀 🦴 🐚 🍄 🥚 🧵 🪡 🧶 👑 💍 📿 '+
+  '🐟 🐠 🦀 🦞 🍖 🥩 🍗 🍞 🍯 🧀 🥖 🍲 🐀 🦊 🐗 🐺 🐻 🦅 🪱 🌰').split(' ').filter(Boolean);
+
+// Icon background swatches.
+const SWATCHES = ['#8a8377','#b87333','#9aa0a6','#c0a062','#4f8c5c','#2f73b0','#8a4fc4',
+  '#d98b3c','#c2185b','#00acc1','#5d4037','#37474f','#7e57c2','#26a69a'];
+
+// Starter rarity profiles (weights index 0=Common … 6=Celestial). Editable.
+const DEFAULT_PROFILES = [
+  {id:'standard',  name:'Standard',  weights:[200000,66666,22222,5555,1388,277,46]},
+  {id:'junk',      name:'Junk',      weights:[400000,40000,4000,400,40,4,1]},
+  {id:'fine',      name:'Fine',      weights:[120000,60000,30000,12000,4000,900,200]},
+  {id:'masterwork',name:'Masterwork',weights:[40000,30000,24000,16000,9000,4000,2000]},
+];
+
+// ── State ────────────────────────────────────────────────────────────────────
+const LS_KEY = 'trackkin_content_forge_v1';
+let DB = blankDB();
+let edit = {materials:-1, items:-1, recipes:-1, stations:-1, actions:-1, profiles:-1, kins:-1, areas:-1}; // index being edited per tab
+// In-progress form contents per tab, so switching tabs doesn't lose unsaved work.
+// null = no draft (build from `edit` index or blank). Cleared on save / clear / edit.
+let draft = {materials:null, items:null, recipes:null, stations:null, actions:null, profiles:null, kins:null, areas:null};
+let paneRead = null; // set by the active form pane: ()=>currentFormValues
+let activeTab = 'materials';
+let matFilter = 'all'; // Materials list filter: 'all' or a category name
+
+// Capture the current form into its draft before the DOM is rebuilt.
+function stashDraft(){ if(paneRead && draft.hasOwnProperty(activeTab)) draft[activeTab] = paneRead(); }
+
+function blankDB(){ return {materials:[], items:[], recipes:[], stations:[], actions:[], kins:[], regions:[], areas:[], rarityProfiles:JSON.parse(JSON.stringify(DEFAULT_PROFILES))}; }
+
+function save(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(DB)); }catch(e){} schedulePush(); }
+function load(){ try{ const s=localStorage.getItem(LS_KEY); if(s){ const d=JSON.parse(s); const migrate=!('recipes' in d); DB=normalizeDB({...blankDB(),...d}, migrate); if(migrate) save(); } }catch(e){ DB=blankDB(); } }
+
+// ── Forward-compatibility: fill defaults for missing fields, keep unknown ones.
+// This is what keeps old content valid as we add fields later — every loaded
+// entry is run through these so nothing authored before goes "bad".
+function num(v,d){ const n=Number(v); return isFinite(n)?n:(d||0); }
+function objNum(o){ const r={}; if(o&&typeof o==='object') for(const k in o){ const n=num(o[k],0); if(k&&n>0) r[k]=n; } return r; }
+function normIcon(ic){ if(!ic||typeof ic!=='object') return null;
+  if(ic.type==='image'&&ic.value) return {type:'image',value:ic.value};
+  if(ic.type==='emoji'&&ic.value) return {type:'emoji',value:ic.value,bg:ic.bg||SWATCHES[0]}; return null; }
+// Optional full-size artwork (150×150 data-URI). Missing/invalid → null, so
+// content authored before this field existed stays valid (forward-compat).
+function normImage(v){ return (typeof v==='string' && v) ? v : null; }
+function normBoost(b){ b=b||{}; const stat=b.stat||'attack'; const unit=(BOOST_BY_KEY[stat]||{}).unit||b.unit||'flat';
+  let v=Array.isArray(b.values)?b.values.map(x=>num(x,0)):[]; while(v.length<7)v.push(0); return {...b, stat, unit, values:v.slice(0,7)}; }
+function normMaterial(m){ m=m||{}; const name=m.name||m.id||'Material'; const out={...m, id:m.id||slug(name), name,
+  icon:normIcon(m.icon), image:normImage(m.image), skillId:m.skillId||'', category:(m.category||'').trim(), tier:num(m.tier,1)||1, value:num(m.value,0), sell:num(m.sell,0)};
+  if(m.recipe) out.recipe={ skillId:m.recipe.skillId||'', heat:num(m.recipe.heat,0), inputs:objNum(m.recipe.inputs) }; else delete out.recipe;
+  return out; }
+function normItem(it){ it=it||{}; const name=it.name||it.id||'Item';
+  // Migrate legacy craftingSource → craftSkill + workshop (free-text).
+  let cs=it.craftSkill, ws=it.workshop;
+  if(cs===undefined||cs===null){
+    if(it.craftingSource==='craftingBench'){ cs='smithing'; ws=ws||'Crafting Bench'; }
+    else if(it.craftingSource==='carvingBench'){ cs='carving'; ws=ws||'Carving Bench'; }
+    else { cs=''; ws=ws||''; } // shop/drop/none → not crafted
+  }
+  return {...it, id:it.id||slug(name), name,
+  icon:normIcon(it.icon), image:normImage(it.image), slot:SLOTS.includes(it.slot)?it.slot:SLOTS[0], levelRequirement:num(it.levelRequirement,0),
+  tier:Math.max(1,Math.min(10,num(it.tier,1)||1)),
+  craftSkill:SKILLS.some(s=>s.id===cs)?cs:'', workshop:(ws||'').trim(), heat:num(it.heat,0),
+  value:num(it.value,0), sell:num(it.sell,0), rarityProfile:it.rarityProfile||'standard', rarityBias:num(it.rarityBias,0),
+  enhanceable:it.enhanceable!==false,
+  materials:objNum(it.materials), boosts:Array.isArray(it.boosts)?it.boosts.map(normBoost):[] }; }
+function normAction(a){ a=a||{}; const name=a.name||a.id||'Action'; return {...a, id:a.id||slug(name), name,
+  skillId:a.skillId||SKILLS[0].id, levelRequired:num(a.levelRequired,1)||1, stepCost:num(a.stepCost,50)||50,
+  xp:num(a.xp,0), tool:a.tool||'',
+  drops:Array.isArray(a.drops)?a.drops.map(d=>({resource:(d&&d.resource)||'',qtyMin:num(d&&d.qtyMin,0),qtyMax:num(d&&d.qtyMax,0),weight:num(d&&d.weight,0)})):[] }; }
+function normProfile(p){ p=p||{}; const name=p.name||p.id||'Profile'; let w=Array.isArray(p.weights)?p.weights.map(x=>num(x,0)):[]; while(w.length<7)w.push(0); return {...p, id:p.id||slug(name), name, weights:w.slice(0,7)}; }
+function normKin(k){ k=k||{}; const name=k.name||k.id||'Kin'; return {...k, id:k.id||slug(name), name,
+  icon:normIcon(k.icon), desc:k.desc||'',
+  skills:Array.isArray(k.skills)?k.skills.filter(s=>SKILLS.some(x=>x.id===s)):[] }; }
+function normRegion(r){ r=r||{}; const name=r.name||r.id||'Region'; return {...r, id:r.id||slug(name), name}; }
+// Crafting station: an authored place a recipe can be made (any skill). tier is
+// a soft cap hint. skillId optional (blank = any skill).
+function normStation(s){ s=s||{}; const name=s.name||s.id||'Station'; return {...s, id:s.id||slug(name), name,
+  icon:normIcon(s.icon), skillId:SKILLS.some(x=>x.id===s.skillId)?s.skillId:'', tier:num(s.tier,1)||1, desc:s.desc||'' }; }
+// Recipe: first-class craft. One output (item or material), many inputs, and a
+// set of stations that can make it. tags let equip modifiers target it later.
+function normRecipe(r){ r=r||{}; const outId=r.outputId||r.output||'';
+  const name=r.name||''; return {...r, id:r.id||slug(name||('recipe_'+outId)),
+  name, outputId:outId, outputQty:Math.max(1,num(r.outputQty,1)||1),
+  inputs:objNum(r.inputs), skillId:SKILLS.some(x=>x.id===r.skillId)?r.skillId:'', heat:num(r.heat,0),
+  level:num(r.level,0), stations:Array.isArray(r.stations)?r.stations.slice():[],
+  tags:Array.isArray(r.tags)?r.tags.map(t=>String(t).trim()).filter(Boolean):[] }; }
+// One-time migration: turn legacy embedded crafting (item.craftSkill+materials,
+// material.recipe, item.workshop) into first-class recipes + stations. Runs only
+// when the loaded data has no `recipes` key yet, so it never double-fires.
+function synthCrafting(items, materials){
+  const stations=[], recipes=[], used={}, stByWs={};
+  items.concat(materials).forEach(x=>{ used[x.id]=1; });
+  const uid=(base)=>{ let id=base||'x', n=2; while(used[id]) id=(base||'x')+'_'+(n++); used[id]=1; return id; };
+  const stationForWorkshop=(ws)=>{ ws=(ws||'').trim(); if(!ws) return null; const key=slug(ws);
+    if(!stByWs[key]){ const st=normStation({id:uid(key), name:ws}); stations.push(st); stByWs[key]=st.id; } return stByWs[key]; };
+  items.forEach(it=>{ if(it.craftSkill && Object.keys(it.materials||{}).length){
+    const st=stationForWorkshop(it.workshop);
+    recipes.push(normRecipe({ id:uid('recipe_'+it.id), name:it.name, outputId:it.id, outputQty:1,
+      inputs:it.materials, skillId:it.craftSkill, heat:it.heat, level:it.levelRequirement, stations:st?[st]:[] })); } });
+  materials.forEach(m=>{ if(m.recipe && Object.keys(m.recipe.inputs||{}).length){
+    recipes.push(normRecipe({ id:uid('recipe_'+m.id), name:m.name, outputId:m.id, outputQty:1,
+      inputs:m.recipe.inputs, skillId:m.recipe.skillId, heat:m.recipe.heat })); } });
+  return {stations, recipes};
+}
+function normArea(a){ a=a||{}; const name=a.name||a.id||'Area'; return {...a, id:a.id||slug(name), name,
+  icon:normIcon(a.icon),
+  biome:BIOMES.includes(a.biome)?a.biome:BIOMES[0],
+  regionId:a.regionId||'',
+  activities:Array.isArray(a.activities)?a.activities.slice():[],
+  facilities:Array.isArray(a.facilities)?a.facilities.filter(f=>FACILITIES.some(x=>x.key===f)):[],
+  links:Array.isArray(a.links)?a.links.slice():[],            // area connections (World map tab)
+  pos:(Array.isArray(a.pos)&&a.pos.length===2)?[num(a.pos[0],0),num(a.pos[1],0)]:null }; }
+function normalizeDB(db, migrate){ db=db||{};
+  const materials=(db.materials||[]).map(normMaterial), items=(db.items||[]).map(normItem);
+  let stations=(db.stations||[]).map(normStation), recipes=(db.recipes||[]).map(normRecipe);
+  if(migrate){ const synth=synthCrafting(items, materials); stations=stations.concat(synth.stations); recipes=recipes.concat(synth.recipes); }
+  return { materials, items, recipes, stations, actions:(db.actions||[]).map(normAction),
+    kins:(db.kins||[]).map(normKin),
+    regions:(db.regions||[]).map(normRegion), areas:(db.areas||[]).map(normArea),
+    rarityProfiles:(db.rarityProfiles&&db.rarityProfiles.length?db.rarityProfiles:JSON.parse(JSON.stringify(DEFAULT_PROFILES))).map(normProfile) }; }
+
+// Unique id across all content kinds (for Duplicate).
+function uniqueId(base){ const m={}; ['materials','items','recipes','stations','actions','kins','regions','areas','rarityProfiles'].forEach(k=>DB[k].forEach(e=>m[e.id]=1)); let id=base||'x', n=2; while(m[id]) id=(base||'x')+'_'+(n++); return id; }
+function dupEntry(kind,i){ const c=JSON.parse(JSON.stringify(DB[kind][i])); c.name=(c.name||'')+' Copy'; c.id=uniqueId(slug(c.name)); DB[kind].push(c); commit(); }
+
+// ── tiny DOM helpers ──────────────────────────────────────────────────────────
+function el(tag, props={}, kids=[]){
+  const n=document.createElement(tag);
+  for(const k in props){
+    if(k==='class') n.className=props[k];
+    else if(k==='html') n.innerHTML=props[k];
+    else if(k.startsWith('on')) n[k]=props[k];
+    else if(k==='style') n.setAttribute('style',props[k]);
+    else if(props[k]!=null) n.setAttribute(k, props[k]);
+  }
+  (Array.isArray(kids)?kids:[kids]).forEach(c=>{ if(c==null) return; n.append(c.nodeType?c:document.createTextNode(c)); });
+  return n;
+}
+function esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+function slug(s){return String(s).trim().toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');}
+function opt(value,label,sel){const o=new Option(label??value,value); if(sel!=null&&value===sel)o.selected=true; return o;}
+
+// id helpers / registry
+function allIds(except){ // {id:kind}
+  const m={};
+  ['materials','items','recipes','stations','actions','kins','regions','areas','rarityProfiles'].forEach(k=>DB[k].forEach((e,i)=>{ if(!(k===kindOfTab(activeTab)&&i===except)) m[e.id]=k; }));
+  return m;
+}
+function kindOfTab(t){ return t==='profiles' ? 'rarityProfiles' : t; } // map tab → DB key
+function idTaken(id, except){ const m=allIds(except); return m[id]; }
+
+// ── icon picker (reusable) ────────────────────────────────────────────────────
+// icon model: {type:'emoji'|'image', value:emojiOrDataURI, bg:'#hex'} | null
+function placeholderLetter(name){ return (name||'?').trim().charAt(0).toUpperCase()||'?'; }
+function renderIconInto(chip, icon, name){
+  chip.innerHTML='';
+  if(icon && icon.type==='image'){ chip.style.background='#fff'; chip.append(el('img',{src:icon.value,style:'width:100%;height:100%;object-fit:contain;border-radius:9px'})); }
+  else if(icon && icon.type==='emoji'){ chip.style.background=icon.bg||'#8a8377'; chip.textContent=icon.value; }
+  else { chip.style.background='#8a8377'; chip.textContent=placeholderLetter(name); }
+}
+function makeIconPicker(initial, getName){
+  let icon = initial ? JSON.parse(JSON.stringify(initial)) : null;
+  const chip = el('div',{class:'icon-chip', title:'Click to set icon'});
+  const pop  = el('div',{class:'icon-pop', style:'display:none'});
+  function refresh(){ renderIconInto(chip, icon, getName()); }
+  chip.onclick=()=>{ pop.style.display = pop.style.display==='none'?'block':'none'; };
+  // emoji grid
+  const grid = el('div',{class:'emoji-grid'});
+  EMOJI.forEach(e=>grid.append(el('button',{type:'button',onclick:()=>{ icon={type:'emoji',value:e,bg:(icon&&icon.bg)||SWATCHES[0]}; refresh(); drawSwatches(); }},e)));
+  // swatches
+  const sw = el('div',{class:'swatches'});
+  function drawSwatches(){ sw.innerHTML=''; SWATCHES.forEach(c=>{ const s=el('div',{class:'swatch'+((icon&&icon.bg===c)?' sel':''),style:'background:'+c}); s.onclick=()=>{ if(!icon||icon.type==='image') icon={type:'emoji',value:(icon&&icon.value)||EMOJI[0],bg:c}; else icon.bg=c; refresh(); drawSwatches(); }; sw.append(s); }); }
+  drawSwatches();
+  // upload + clear
+  const up = el('input',{type:'file',accept:'image/*',style:'display:none',onchange:(ev)=>{
+    const f=ev.target.files[0]; if(!f) return;
+    const r=new FileReader(); r.onload=()=>{ const img=new Image(); img.onload=()=>{ const cv=document.createElement('canvas'); cv.width=50;cv.height=50; const x=cv.getContext('2d');
+      // contain into 50x50
+      const sc=Math.min(50/img.width,50/img.height); const w=img.width*sc,h=img.height*sc; x.drawImage(img,(50-w)/2,(50-h)/2,w,h);
+      icon={type:'image',value:cv.toDataURL('image/png')}; refresh(); }; img.src=r.result; }; r.readAsDataURL(f); ev.target.value='';
+  }});
+  const upBtn = el('button',{type:'button',class:'ghost sm',onclick:()=>up.click()},'Upload 50×50');
+  const clrBtn= el('button',{type:'button',class:'danger sm',onclick:()=>{ icon=null; refresh(); drawSwatches(); }},'Clear');
+  pop.append(el('div',{class:'help',style:'margin-bottom:6px'},'Pick an emoji + color, or upload an image. Empty = letter placeholder.'),
+             grid, sw, el('div',{class:'bar',style:'margin-top:8px'},[upBtn, clrBtn, up]));
+  refresh();
+  const wrapEl = el('div',{},[el('div',{style:'display:flex;gap:10px;align-items:center'},[chip, el('span',{class:'help'},'Icon')]), pop]);
+  return {element:wrapEl, get:()=>icon, syncName:refresh};
+}
+
+// ── large image picker (optional 150×150 artwork) ─────────────────────────────
+// model: dataURI string | null. Separate from the small icon — this is the full
+// sprite/artwork (matches the 150×150 asset tracker). Optional everywhere.
+function makeImagePicker(initial){
+  let image = (typeof initial==='string' && initial) ? initial : null;
+  const box = el('div',{class:'img-box', title:'Optional 150×150 artwork'});
+  function refresh(){ box.innerHTML=''; if(image){ box.append(el('img',{src:image,style:'width:100%;height:100%;object-fit:contain'})); }
+    else { box.append(el('span',{class:'help',style:'text-align:center;padding:0 8px'},'No image')); } }
+  const up = el('input',{type:'file',accept:'image/*',style:'display:none',onchange:(ev)=>{
+    const f=ev.target.files[0]; if(!f) return;
+    const r=new FileReader(); r.onload=()=>{ const img=new Image(); img.onload=()=>{ const cv=document.createElement('canvas'); cv.width=150;cv.height=150; const x=cv.getContext('2d');
+      // contain into 150×150 (keeps aspect ratio, transparent padding)
+      const sc=Math.min(150/img.width,150/img.height); const w=img.width*sc,h=img.height*sc; x.drawImage(img,(150-w)/2,(150-h)/2,w,h);
+      image=cv.toDataURL('image/png'); refresh(); }; img.src=r.result; }; r.readAsDataURL(f); ev.target.value='';
+  }});
+  const upBtn = el('button',{type:'button',class:'ghost sm',onclick:()=>up.click()},'Upload image');
+  const clrBtn= el('button',{type:'button',class:'danger sm',onclick:()=>{ image=null; refresh(); }},'Clear');
+  refresh();
+  const wrapEl = el('div',{style:'display:flex;gap:12px;align-items:flex-start'},[ box,
+    el('div',{},[ el('div',{class:'help',style:'margin-bottom:8px'},'Optional full artwork. Any image is scaled to fit 150×150 (PNG, transparent padding).'),
+      el('div',{class:'bar'},[upBtn, clrBtn, up]) ]) ]);
+  return {element:wrapEl, get:()=>image};
+}
+
+// ── rarity odds math (mirrors Balance Option-B) ───────────────────────────────
+function oddsFromWeights(weights, bias){
+  const eff = weights.map((w,i)=>(w||0)*Math.pow(1+(bias||0), i));
+  const tot = eff.reduce((a,b)=>a+b,0)||1;
+  return eff.map(w=>w/tot);
+}
+function profileById(id){ return DB.rarityProfiles.find(p=>p.id===id) || DB.rarityProfiles[0]; }
+
+// ── slot <select> grouped Equipment / Tools ───────────────────────────────────
+function slotSelect(value){ const s=el('select',{});
+  SLOT_GROUPS.forEach(g=>{ const og=el('optgroup',{label:g.label}); g.slots.forEach(sl=>og.append(opt(sl, SLOT_LABELS[sl]||sl))); s.append(og); });
+  if(value!=null && SLOTS.includes(value)) s.value=value; return s; }
+
+// ── resource <select> populated from the registry ─────────────────────────────
+function resourceSelect(value, {items=true, materials=true}={}){
+  const s=el('select',{});
+  s.add(opt('','— pick —', value==null?'':undefined));
+  if(materials && DB.materials.length){ const g=el('optgroup',{label:'Materials'}); DB.materials.forEach(m=>g.append(opt(m.id, m.name))); s.append(g); }
+  if(items && DB.items.length){ const g=el('optgroup',{label:'Items'}); DB.items.forEach(it=>g.append(opt(it.id, it.name))); s.append(g); }
+  if(value!=null) s.value=value;
+  return s;
+}
+
+/* ============================================================================
+   TAB FRAMEWORK
+============================================================================ */
+const TABS = [
+  {key:'materials', label:'Materials'},
+  {key:'items',     label:'Items'},
+  {key:'recipes',   label:'Recipes'},
+  {key:'stations',  label:'Stations'},
+  {key:'actions',   label:'Actions'},
+  {key:'kins',      label:'Kins'},
+  {key:'areas',     label:'Areas'},
+  {key:'world',     label:'World Map'},
+  {key:'profiles',  label:'Rarity Profiles'},
+  {key:'validate',  label:'Validate'},
+  {key:'export',    label:'Export / Import'},
+];
+function renderTabs(){
+  const nav=document.getElementById('tabs'); nav.innerHTML='';
+  const problems=validate();
+  TABS.forEach(t=>{
+    let badge='';
+    if(t.key==='materials') badge='<span class="badge">'+DB.materials.length+'</span>';
+    if(t.key==='items') badge='<span class="badge">'+DB.items.length+'</span>';
+    if(t.key==='recipes') badge='<span class="badge">'+DB.recipes.length+'</span>';
+    if(t.key==='stations') badge='<span class="badge">'+DB.stations.length+'</span>';
+    if(t.key==='actions') badge='<span class="badge">'+DB.actions.length+'</span>';
+    if(t.key==='kins') badge='<span class="badge">'+DB.kins.length+'</span>';
+    if(t.key==='areas') badge='<span class="badge">'+DB.areas.length+'</span>';
+    if(t.key==='profiles') badge='<span class="badge">'+DB.rarityProfiles.length+'</span>';
+    if(t.key==='validate'){ const e=problems.filter(p=>p.level==='error').length; badge=e?'<span class="badge err">'+e+'</span>':'<span class="badge">0</span>'; }
+    nav.append(el('button',{class:activeTab===t.key?'active':'',onclick:()=>{ stashDraft(); activeTab=t.key; renderAll(); },html:t.label+badge}));
+  });
+}
+function renderAll(){ paneRead=null; renderTabs(); const root=document.getElementById('root'); root.innerHTML='';
+  ({materials:paneMaterials, items:paneItems, recipes:paneRecipes, stations:paneStations, actions:paneActions, kins:paneKins, areas:paneAreas, world:paneWorld, profiles:paneProfiles, validate:paneValidate, export:paneExport}[activeTab])(root);
+}
+
+/* ============================================================================
+   MATERIALS
+============================================================================ */
+function paneMaterials(root){
+  const idx = edit.materials;
+  const model = draft.materials || (idx>=0 ? DB.materials[idx] : null);
+  let iconPicker;
+  const nameI = el('input',{placeholder:'Copper Bar', value:model?model.name:''});
+  const idLine = el('div',{class:'idline'});
+  function syncId(){ const id=slug(nameI.value); const taken=idTaken(id, idx); idLine.className='idline'+(taken?' bad':''); idLine.innerHTML = id?('id: <code>'+id+'</code>'+(taken?' — already used!':'')):'id: <code>—</code>'; iconPicker&&iconPicker.syncName(); }
+  nameI.oninput=syncId;
+  iconPicker = makeIconPicker(model&&model.icon, ()=>nameI.value||'?');
+  const imagePicker = makeImagePicker(model&&model.image);
+
+  const skillS = el('select',{}); skillS.add(opt('','— none —')); SKILLS.forEach(s=>skillS.add(opt(s.id,s.name))); if(model&&model.skillId) skillS.value=model.skillId;
+  const tierI  = el('input',{type:'number',min:'1',value:model?(model.tier||1):1});
+  // Category (free text + suggestions from existing categories) for the coverage table.
+  const catList = el('datalist',{id:'matcats'});
+  [...new Set(DB.materials.map(x=>x.category).filter(Boolean))].sort()
+      .forEach(c=>catList.append(el('option',{value:c})));
+  const catI = el('input',{placeholder:'e.g. Ore, Bar, Log', value:model?(model.category||''):'', list:'matcats'});
+  const valueI = el('input',{type:'number',min:'0',value:model?(model.value||0):0});
+  const sellI  = el('input',{type:'number',min:'0',value:model?(model.sell||0):0});
+
+  function collect(){ const prev=(idx>=0?DB.materials[idx]:null);
+    const m={ name:nameI.value, icon:iconPicker.get(), image:imagePicker.get(), skillId:skillS.value||'', category:catI.value.trim(), tier:Number(tierI.value)||1, value:Number(valueI.value)||0, sell:Number(sellI.value)||0 };
+    // Processing recipes now live on the Recipes tab; a legacy embedded recipe is
+    // preserved verbatim so nothing authored before is lost.
+    if(prev&&prev.recipe) m.recipe=prev.recipe; return m; }
+  function doSave(){ const m=collect(); m.name=(m.name||'').trim(); if(!m.name){ alert('Name the material first.'); return; }
+    m.id=slug(m.name); const taken=idTaken(m.id, idx); if(taken){ alert('That id ("'+m.id+'") is already used by a '+taken.replace(/s$/,'')+'. Rename it.'); return; }
+    if(idx>=0) DB.materials[idx]=m; else DB.materials.push(m); draft.materials=null; edit.materials=-1; rerender(); }
+
+  const form = el('div',{class:'col'},[
+    el('div',{class:'card'},[
+      el('h2',{},idx>=0?('Editing: '+esc(DB.materials[idx].name)):'New material'),
+      el('div',{style:'display:flex;gap:14px;align-items:flex-start'},[
+        iconPicker.element,
+        el('div',{style:'flex:1'},[ el('label',{},'Name'), nameI, idLine ]),
+      ]),
+      el('div',{class:'row'},[ el('div',{},[el('label',{},'Source skill (optional)'), skillS]), el('div',{},[el('label',{},'Tier'), tierI]) ]),
+      el('div',{class:'row'},[
+        el('div',{},[el('label',{},'Category'), catI, catList,
+          el('div',{class:'help',style:'margin-top:4px'},'Groups the coverage table (Ore, Bar, Log…)')]),
+        el('div',{},[el('label',{},'Value (buy)'), valueI]),
+      ]),
+      el('div',{class:'row'},[ el('div',{},[el('label',{},'Sell price'), sellI]), el('div',{}) ]),
+      el('label',{},'Artwork (optional, 150×150)'), imagePicker.element,
+      (idx>=0? madeBySummary(DB.materials[idx].id)
+             : el('div',{class:'help',style:'margin-top:12px'},'Processing recipes (ore → bar, etc.) now live on the Recipes tab. Save the material first, then add a recipe for it.')),
+      el('div',{class:'bar',style:'margin-top:12px'},[
+        el('button',{onclick:doSave}, idx>=0?'Update material':'Add material'),
+        el('button',{class:'ghost',onclick:()=>{draft.materials=null; edit.materials=-1; renderAll();}},'Clear form'),
+      ]),
+    ]),
+  ]);
+
+  // -- Materials list: filterable by category + grouped, so no endless scroll --
+  const catKey = (m) => m.category || '(uncategorized)';
+  const cats = [...new Set(DB.materials.map(catKey))].sort();
+  if (matFilter !== 'all' && !cats.includes(matFilter)) matFilter = 'all';
+
+  function catChip(label, key) {
+    const count = key === 'all'
+        ? DB.materials.length
+        : DB.materials.filter(m => catKey(m) === key).length;
+    return el('button',
+        {class: 'ghost sm chip' + (matFilter === key ? ' sel' : ''),
+         onclick: () => { matFilter = key; renderAll(); }},
+        label + ' (' + count + ')');
+  }
+  const chips = el('div', {class: 'chips'},
+      [catChip('All', 'all'), ...cats.map(c => catChip(c, c))]);
+
+  // entries keep their original DB index (materialCard needs it for edit/remove)
+  const entriesFor = (key) => DB.materials
+      .map((m, i) => ({m, i}))
+      .filter(x => catKey(x.m) === key)
+      .sort((a, b) => (a.m.tier || 1) - (b.m.tier || 1)
+          || a.m.name.localeCompare(b.m.name));
+
+  const body = el('div', {});
+  if (matFilter === 'all') {
+    cats.forEach(c => {
+      const es = entriesFor(c);
+      if (!es.length) return;
+      body.append(el('div', {class: 'group-head'}, c + ' (' + es.length + ')'));
+      es.forEach(x => body.append(materialCard(x.m, x.i)));
+    });
+  } else {
+    entriesFor(matFilter).forEach(x => body.append(materialCard(x.m, x.i)));
+  }
+
+  const list = el('div', {class: 'col'}, [
+    materialCoverageCard(),
+    el('div', {class: 'card'}, [
+      el('h2', {}, ['Materials ', el('span', {class: 'help'}, '(' + DB.materials.length + ')')]),
+      DB.materials.length ? chips : null,
+      DB.materials.length ? body : el('div', {class: 'empty'}, 'No materials yet.'),
+    ]),
+  ]);
+
+  root.append(form, list);
+  paneRead=collect; syncId();
+}
+// Category × tier grid so you can spot which (category, tier) slots are missing.
+function materialCoverageCard(){
+  const cats = [...new Set(DB.materials.map(m=>m.category||'(uncategorized)'))].sort();
+  const maxTier = Math.max(1,
+      ...DB.materials.map(m=>m.tier||1), ...DB.items.map(it=>it.tier||1));
+  const grid = {}; // category -> tier -> [names]
+  DB.materials.forEach(m=>{
+    const c=m.category||'(uncategorized)', t=m.tier||1;
+    (grid[c]=grid[c]||{}); (grid[c][t]=grid[c][t]||[]).push(m.name);
+  });
+  const head=[el('th',{},'Category')];
+  for(let t=1;t<=maxTier;t++) head.push(el('th',{},'T'+t));
+  const rows=[el('tr',{},head)];
+  cats.forEach(c=>{
+    const cells=[el('td',{class:'cat'},c)];
+    for(let t=1;t<=maxTier;t++){
+      const names=(grid[c]&&grid[c][t])||[];
+      const ok=names.length>0;
+      cells.push(el('td',{class:ok?'cov-ok':'cov-gap', title:ok?names.join(', '):'missing'},
+          ok?(names.length>1?('● '+names.length):'●'):'—'));
+    }
+    rows.push(el('tr',{},cells));
+  });
+  return el('div',{class:'card'},[
+    el('h2',{},['Tier coverage ', el('span',{class:'help'},'(materials by category × tier — red = gap; ● = filled)')]),
+    cats.length? el('table',{class:'cov-table'}, rows)
+               : el('div',{class:'empty'},'Give materials a Category to see coverage.'),
+  ]);
+}
+function materialCard(m,i){
+  const chip=el('div',{class:'icon-chip',style:'cursor:default'}); renderIconInto(chip,m.icon,m.name);
+  const thumb = m.image ? el('img',{class:'img-thumb', src:m.image, title:'Has 150×150 artwork'}) : null;
+  const recs=recipesForOutput(m.id);
+  const meta=[(m.category||'uncategorized'),(m.skillId?m.skillId:'—'),'T'+(m.tier||1), recs.length?'crafted':'raw', (m.value?('buy '+m.value):null), (m.sell?('sell '+m.sell):null)].filter(Boolean).join(' · ');
+  return el('div',{class:'listitem'},[ chip, thumb, el('div',{class:'body'},[
+    el('div',{class:'name'},m.name), el('div',{class:'meta'},'id: '+m.id+' · '+meta),
+    recs.length? el('div',{}, recs.map(({r})=>el('span',{class:'pill'}, recipeTitle(r)+': '+(Object.entries(r.inputs||{}).map(([k,v])=>matName(k)+'×'+v).join(', ')||'—')))) : null,
+    el('div',{class:'acts'},[
+      el('button',{class:'ghost sm',onclick:()=>{draft.materials=null; edit.materials=i; activeTab='materials'; renderAll(); window.scrollTo({top:0,behavior:'smooth'});}},'Edit'),
+      el('button',{class:'ghost sm',onclick:()=>dupEntry('materials',i)},'Duplicate'),
+      el('button',{class:'danger sm',onclick:()=>{ if(confirm('Remove '+m.name+'?')){ DB.materials.splice(i,1); commit(); } }},'Remove'),
+    ]),
+  ])]);
+}
+function matName(id){ const m=DB.materials.find(x=>x.id===id); const it=DB.items.find(x=>x.id===id); return m?m.name:(it?it.name:id); }
+
+/* ============================================================================
+   KINS
+============================================================================ */
+function paneKins(root){
+  const idx = edit.kins;
+  const model = draft.kins || (idx>=0 ? DB.kins[idx] : null);
+  let iconPicker;
+  const nameI = el('input',{placeholder:'Axor', value:model?model.name:''});
+  const idLine = el('div',{class:'idline'});
+  function syncId(){ const id=slug(nameI.value); const taken=idTaken(id, idx); idLine.className='idline'+(taken?' bad':''); idLine.innerHTML = id?('id: <code>'+id+'</code>'+(taken?' — already used!':'')):'id: <code>—</code>'; iconPicker&&iconPicker.syncName(); }
+  nameI.oninput=syncId;
+  iconPicker = makeIconPicker(model&&model.icon, ()=>nameI.value||'?');
+  const descI = el('input',{placeholder:'A sturdy woodland kin…', value:model?(model.desc||''):''});
+
+  // Skills this kin can train — toggle chips.
+  const chosen = new Set(model&&Array.isArray(model.skills)?model.skills:[]);
+  const skillsWrap = el('div',{class:'chips'});
+  function renderSkills(){ skillsWrap.innerHTML=''; SKILLS.forEach(s=>{ const on=chosen.has(s.id);
+    skillsWrap.append(el('button',{class:'ghost sm chip'+(on?' sel':''),onclick:()=>{ on?chosen.delete(s.id):chosen.add(s.id); renderSkills(); }}, s.name)); }); }
+  renderSkills();
+
+  function collect(){ return { name:nameI.value, icon:iconPicker.get(), desc:descI.value, skills:[...chosen] }; }
+  function doSave(){ const k=collect(); k.name=(k.name||'').trim(); if(!k.name){ alert('Name the kin first.'); return; }
+    k.id=slug(k.name); const taken=idTaken(k.id, idx); if(taken){ alert('That id ("'+k.id+'") is already used by a '+taken.replace(/s$/,'')+'. Rename it.'); return; }
+    if(idx>=0) DB.kins[idx]=k; else DB.kins.push(k); draft.kins=null; edit.kins=-1; rerender(); }
+
+  const form = el('div',{class:'col'},[ el('div',{class:'card'},[
+    el('h2',{},idx>=0?('Editing: '+esc(DB.kins[idx].name)):'New kin'),
+    el('div',{style:'display:flex;gap:14px;align-items:flex-start'},[ iconPicker.element, el('div',{style:'flex:1'},[ el('label',{},'Name'), nameI, idLine ]) ]),
+    el('label',{},'Description'), descI,
+    el('label',{style:'margin-top:10px;display:block'},'Skills (what this kin can train)'), skillsWrap,
+    el('div',{class:'bar',style:'margin-top:12px'},[
+      el('button',{onclick:doSave}, idx>=0?'Update kin':'Add kin'),
+      el('button',{class:'ghost',onclick:()=>{draft.kins=null; edit.kins=-1; renderAll();}},'Clear form'),
+    ]),
+  ])]);
+
+  const list = el('div',{class:'col'},[ el('div',{class:'card'},[
+    el('h2',{},['Kins ', el('span',{class:'help'},'('+DB.kins.length+')')]),
+    DB.kins.length? el('div',{}, DB.kins.map((k,i)=>kinCard(k,i))) : el('div',{class:'empty'},'No kins yet.'),
+  ])]);
+
+  root.append(form, list); paneRead=collect; syncId();
+}
+function kinCard(k,i){
+  const chip=el('div',{class:'icon-chip',style:'cursor:default'}); renderIconInto(chip,k.icon,k.name);
+  const sk=(k.skills||[]).map(id=>{ const s=SKILLS.find(x=>x.id===id); return s?s.name:id; }).join(', ')||'—';
+  return el('div',{class:'listitem'},[ chip, el('div',{class:'body'},[
+    el('div',{class:'name'},k.name), el('div',{class:'meta'},'id: '+k.id+(k.desc?(' · '+k.desc):'')),
+    el('div',{},el('span',{class:'help'},'skills: '+sk)),
+    el('div',{class:'acts'},[
+      el('button',{class:'ghost sm',onclick:()=>{draft.kins=null; edit.kins=i; activeTab='kins'; renderAll(); window.scrollTo({top:0,behavior:'smooth'});}},'Edit'),
+      el('button',{class:'ghost sm',onclick:()=>dupEntry('kins',i)},'Duplicate'),
+      el('button',{class:'danger sm',onclick:()=>{ if(confirm('Remove '+k.name+'?')){ DB.kins.splice(i,1); commit(); } }},'Remove'),
+    ]),
+  ])]);
+}
+
+/* ============================================================================
+   REGIONS + AREAS  (the World map / connections live in a later "World" tab)
+============================================================================ */
+function paneAreas(root){
+  const idx = edit.areas;
+  const model = draft.areas || (idx>=0 ? DB.areas[idx] : null);
+  let iconPicker;
+  const nameI = el('input',{placeholder:'Whispering Woods', value:model?model.name:''});
+  const idLine = el('div',{class:'idline'});
+  function syncId(){ const id=slug(nameI.value); const taken=idTaken(id, idx); idLine.className='idline'+(taken?' bad':''); idLine.innerHTML = id?('id: <code>'+id+'</code>'+(taken?' — already used!':'')):'id: <code>—</code>'; iconPicker&&iconPicker.syncName(); }
+  nameI.oninput=syncId;
+  iconPicker = makeIconPicker(model&&model.icon, ()=>nameI.value||'?');
+
+  const biomeS = el('select',{}); BIOMES.forEach(b=>biomeS.add(opt(b,b))); if(model&&model.biome) biomeS.value=model.biome;
+  const regionS = el('select',{}); regionS.add(opt('','— region —')); DB.regions.forEach(r=>regionS.add(opt(r.id,r.name))); if(model&&model.regionId) regionS.value=model.regionId;
+
+  // Activities this area offers (multi-select from the Actions tab).
+  const acts = new Set(model&&Array.isArray(model.activities)?model.activities:[]);
+  const actsWrap = el('div',{class:'chips'});
+  function renderActs(){ actsWrap.innerHTML=''; if(!DB.actions.length){ actsWrap.append(el('span',{class:'help'},'No activities yet — create them in the Actions tab.')); return; }
+    DB.actions.forEach(a=>{ const on=acts.has(a.id); actsWrap.append(el('button',{class:'ghost sm chip'+(on?' sel':''),onclick:()=>{ on?acts.delete(a.id):acts.add(a.id); renderActs(); }}, a.name)); }); }
+  renderActs();
+
+  // Facilities present in this area.
+  const facs = new Set(model&&Array.isArray(model.facilities)?model.facilities:[]);
+  const facsWrap = el('div',{class:'chips'});
+  function renderFacs(){ facsWrap.innerHTML=''; FACILITIES.forEach(f=>{ const on=facs.has(f.key); facsWrap.append(el('button',{class:'ghost sm chip'+(on?' sel':''),onclick:()=>{ on?facs.delete(f.key):facs.add(f.key); renderFacs(); }}, f.name)); }); }
+  renderFacs();
+
+  function collect(){ const prev = (idx>=0?DB.areas[idx]:null);
+    return { name:nameI.value, icon:iconPicker.get(), biome:biomeS.value, regionId:regionS.value,
+      activities:[...acts], facilities:[...facs],
+      links:prev?prev.links:[], pos:prev?prev.pos:null }; } // links/pos set in the World tab
+  function doSave(){ const a=collect(); a.name=(a.name||'').trim(); if(!a.name){ alert('Name the area first.'); return; }
+    a.id=slug(a.name); const taken=idTaken(a.id, idx); if(taken){ alert('That id ("'+a.id+'") is already used by a '+taken.replace(/s$/,'')+'. Rename it.'); return; }
+    if(idx>=0) DB.areas[idx]=a; else DB.areas.push(a); draft.areas=null; edit.areas=-1; rerender(); }
+
+  // Inline region manager.
+  const regNameI = el('input',{placeholder:'New region name', style:'max-width:220px'});
+  function addRegion(){ const n=(regNameI.value||'').trim(); if(!n) return; const id=slug(n); if(idTaken(id,-1)){ alert('That id ("'+id+'") is already used.'); return; } DB.regions.push({id,name:n}); regNameI.value=''; commit(); }
+  const regChips = el('div',{class:'chips'}, DB.regions.length? DB.regions.map((r,i)=>el('span',{class:'pill'},[ r.name+' ', el('button',{class:'danger sm',style:'padding:0 6px;margin-left:4px',onclick:()=>{ if(confirm('Remove region '+r.name+'?')){ DB.regions.splice(i,1); commit(); } }},'✕') ])) : [el('span',{class:'help'},'No regions yet.')]);
+
+  const form = el('div',{class:'col'},[
+    el('div',{class:'card'},[
+      el('h2',{},'Regions'),
+      el('div',{class:'sub-row'},[ regNameI, el('button',{class:'ghost sm',onclick:addRegion},'+ Add region') ]),
+      regChips,
+    ]),
+    el('div',{class:'card'},[
+      el('h2',{},idx>=0?('Editing area: '+esc(DB.areas[idx].name)):'New area'),
+      el('div',{style:'display:flex;gap:14px;align-items:flex-start'},[ iconPicker.element, el('div',{style:'flex:1'},[ el('label',{},'Name'), nameI, idLine ]) ]),
+      el('div',{class:'row'},[ el('div',{},[el('label',{},'Biome'),biomeS]), el('div',{},[el('label',{},'Region'),regionS]) ]),
+      el('label',{style:'margin-top:10px;display:block'},'Activities (from the Actions tab)'), actsWrap,
+      el('label',{style:'margin-top:10px;display:block'},'Facilities'), facsWrap,
+      el('div',{class:'help',style:'margin-top:8px'},'Connections between areas are drawn in the World map tab (coming next).'),
+      el('div',{class:'bar',style:'margin-top:12px'},[
+        el('button',{onclick:doSave}, idx>=0?'Update area':'Add area'),
+        el('button',{class:'ghost',onclick:()=>{draft.areas=null; edit.areas=-1; renderAll();}},'Clear form'),
+      ]),
+    ]),
+  ]);
+
+  const list = el('div',{class:'col'},[ el('div',{class:'card'},[
+    el('h2',{},['Areas ', el('span',{class:'help'},'('+DB.areas.length+')')]),
+    DB.areas.length? el('div',{}, DB.areas.map((a,i)=>areaCard(a,i))) : el('div',{class:'empty'},'No areas yet.'),
+  ])]);
+
+  root.append(form, list); paneRead=collect; syncId();
+}
+function areaCard(a,i){
+  const chip=el('div',{class:'icon-chip',style:'cursor:default'}); renderIconInto(chip,a.icon,a.name);
+  const region = DB.regions.find(r=>r.id===a.regionId); const regionName = region?region.name:'—';
+  const acts=(a.activities||[]).map(id=>{ const x=DB.actions.find(z=>z.id===id); return x?x.name:id; }).join(', ')||'—';
+  const facs=(a.facilities||[]).map(k=>{ const f=FACILITIES.find(z=>z.key===k); return f?f.name:k; }).join(', ')||'—';
+  return el('div',{class:'listitem'},[ chip, el('div',{class:'body'},[
+    el('div',{class:'name'},a.name), el('div',{class:'meta'},'id: '+a.id+' · '+a.biome+' · '+regionName),
+    el('div',{},el('span',{class:'help'},'activities: '+acts)),
+    el('div',{},el('span',{class:'help'},'facilities: '+facs)),
+    el('div',{class:'acts'},[
+      el('button',{class:'ghost sm',onclick:()=>{draft.areas=null; edit.areas=i; activeTab='areas'; renderAll(); window.scrollTo({top:0,behavior:'smooth'});}},'Edit'),
+      el('button',{class:'ghost sm',onclick:()=>dupEntry('areas',i)},'Duplicate'),
+      el('button',{class:'danger sm',onclick:()=>{ if(confirm('Remove '+a.name+'?')){ DB.areas.splice(i,1); commit(); } }},'Remove'),
+    ]),
+  ])]);
+}
+
+/* ============================================================================
+   WORLD MAP — drag areas onto a snapping grid; tap two areas to link/unlink.
+============================================================================ */
+function paneWorld(root){
+  const cell=72, cols=26, rows=20, nodeW=104, nodeH=44;
+  const W=cols*cell, H=rows*cell;
+
+  if(!DB.areas.length){
+    root.append(el('div',{class:'card'},[ el('h2',{},'World Map'),
+      el('div',{class:'empty'},'Create some areas in the Areas tab first, then place & connect them here.') ]));
+    return;
+  }
+
+  // Auto-place any area without a position so it shows up on the grid.
+  let placeIdx=0, changed=false;
+  DB.areas.forEach(a=>{ if(!a.pos){ a.pos=[ placeIdx%cols, Math.floor(placeIdx/cols) ]; placeIdx++; changed=true; } });
+  if(changed) save();
+
+  // Region colors + legend.
+  const palette=['#4f8c5c','#2f73b0','#8a4fc4','#d98b3c','#c2185b','#00acc1','#b07d1a','#728c69'];
+  const regColor={}; DB.regions.forEach((r,i)=>regColor[r.id]=palette[i%palette.length]);
+  const colorOf=a=> (a.regionId&&regColor[a.regionId]) ? regColor[a.regionId] : '#9a9a9a';
+  const legend=el('div',{class:'legend'}, [
+    ...DB.regions.map(r=>el('span',{},[ el('span',{class:'dot',style:'background:'+(regColor[r.id])}), r.name ])),
+    el('span',{},[ el('span',{class:'dot',style:'background:#9a9a9a'}), 'no region' ]),
+  ]);
+
+  const canvas=el('div',{style:`position:relative;width:${W}px;height:${H}px;`
+    +`background:linear-gradient(var(--rule-soft) 1px, transparent 1px) 0 0/${cell}px ${cell}px,`
+    +`linear-gradient(90deg, var(--rule-soft) 1px, transparent 1px) 0 0/${cell}px ${cell}px, var(--surface);`});
+  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.setAttribute('width',W); svg.setAttribute('height',H);
+  svg.setAttribute('style','position:absolute;left:0;top:0;pointer-events:none');
+  canvas.append(svg);
+
+  const nodeEls={};
+  let selected=null;
+
+  function centerOf(a){ const n=nodeEls[a.id]; if(n) return [n.offsetLeft+nodeW/2, n.offsetTop+nodeH/2];
+    return [a.pos[0]*cell+cell/2, a.pos[1]*cell+cell/2]; }
+  function place(a){ const n=nodeEls[a.id]; n.style.left=(a.pos[0]*cell+cell/2-nodeW/2)+'px'; n.style.top=(a.pos[1]*cell+cell/2-nodeH/2)+'px'; }
+  function refreshSub(ar){ const n=nodeEls[ar.id]; if(!n)return; const sub=n.querySelector('.wn-sub'); if(sub) sub.textContent=ar.biome+(ar.links&&ar.links.length?(' · '+ar.links.length+'🔗'):''); }
+  function drawEdges(){ const seen=new Set(); const out=[];
+    DB.areas.forEach(a=>{ (a.links||[]).forEach(bid=>{ const key=[a.id,bid].sort().join('|'); if(seen.has(key))return; seen.add(key);
+      const b=DB.areas.find(x=>x.id===bid); if(!b)return; const [x1,y1]=centerOf(a),[x2,y2]=centerOf(b);
+      out.push('<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="var(--rule)" stroke-width="3" stroke-linecap="round"/>'); }); });
+    svg.innerHTML=out.join(''); }
+  function toggleLink(a,b){ if(a.id===b.id)return; const i=a.links.indexOf(b.id);
+    if(i>=0){ a.links.splice(i,1); const j=b.links.indexOf(a.id); if(j>=0)b.links.splice(j,1); }
+    else { a.links.push(b.id); b.links.push(a.id); } save(); drawEdges(); refreshSub(a); refreshSub(b); }
+
+  DB.areas.forEach(a=>{
+    const node=el('div',{class:'worldnode',style:`position:absolute;width:${nodeW}px;height:${nodeH}px;border-color:${colorOf(a)}`});
+    node.append(el('div',{class:'wn-name'},a.name));
+    node.append(el('div',{class:'wn-sub'}, a.biome + (a.links&&a.links.length?(' · '+a.links.length+'🔗'):'')));
+    nodeEls[a.id]=node; place(a);
+
+    let sx,sy,ox,oy,moved=false,dragging=false;
+    node.addEventListener('pointerdown',(e)=>{ e.preventDefault(); try{node.setPointerCapture(e.pointerId);}catch(_){}
+      sx=e.clientX; sy=e.clientY; ox=node.offsetLeft; oy=node.offsetTop; moved=false; dragging=true; node.style.zIndex='10'; node.style.cursor='grabbing'; });
+    node.addEventListener('pointermove',(e)=>{ if(!dragging)return; const dx=e.clientX-sx, dy=e.clientY-sy;
+      if(Math.abs(dx)+Math.abs(dy)>4) moved=true; node.style.left=(ox+dx)+'px'; node.style.top=(oy+dy)+'px'; drawEdges(); });
+    node.addEventListener('pointerup',(e)=>{ if(!dragging)return; dragging=false; node.style.zIndex=''; node.style.cursor='grab';
+      if(moved){
+        let gx=Math.round((node.offsetLeft+nodeW/2-cell/2)/cell), gy=Math.round((node.offsetTop+nodeH/2-cell/2)/cell);
+        gx=Math.max(0,Math.min(cols-1,gx)); gy=Math.max(0,Math.min(rows-1,gy));
+        a.pos=[gx,gy]; place(a); drawEdges(); save();
+      } else {
+        if(!selected){ selected=a; node.classList.add('sel'); }
+        else if(selected.id===a.id){ selected=null; node.classList.remove('sel'); }
+        else { toggleLink(selected,a); const p=nodeEls[selected.id]; if(p)p.classList.remove('sel'); selected=null; }
+      }
+    });
+    canvas.append(node);
+  });
+  drawEdges();
+
+  root.append(el('div',{class:'card'},[
+    el('h2',{},['World Map ', el('span',{class:'help'},'('+DB.areas.length+' areas)')]),
+    el('div',{class:'help'},'Drag an area to move it (snaps to the grid). Tap one area then another to link/unlink them. Connections are saved automatically.'),
+    legend,
+    el('div',{class:'worldwrap'}, canvas),
+  ]));
+}
+/* ============================================================================
+   ITEMS
+============================================================================ */
+function paneItems(root){
+  const idx = edit.items;
+  const model = draft.items || (idx>=0 ? DB.items[idx] : null);
+  let iconPicker;
+  const nameI = el('input',{placeholder:'Copper Sword', value:model?model.name:''});
+  const idLine= el('div',{class:'idline'});
+  function syncId(){ const id=slug(nameI.value); const taken=idTaken(id, idx); idLine.className='idline'+(taken?' bad':''); idLine.innerHTML=id?('id: <code>'+id+'</code>'+(taken?' — already used!':'')):'id: <code>—</code>'; iconPicker&&iconPicker.syncName(); }
+  nameI.oninput=syncId;
+  iconPicker=makeIconPicker(model&&model.icon, ()=>nameI.value||'?');
+  const imagePicker=makeImagePicker(model&&model.image);
+
+  const slotS=slotSelect(model?model.slot:undefined);
+  const lvlI =el('input',{type:'number',min:'0',value:model?model.levelRequirement:0});
+  const tierI=el('input',{type:'number',min:'1',max:'10',value:model?(model.tier||1):1});
+  const valueI=el('input',{type:'number',min:'0',value:model?(model.value||0):0});
+  const sellI =el('input',{type:'number',min:'0',value:model?(model.sell||0):0});
+  const enhI =el('input',{type:'checkbox'}); enhI.checked = model ? (model.enhanceable!==false) : true;
+
+  // rarity profile + bias + live odds
+  const profS=el('select',{}); DB.rarityProfiles.forEach(p=>profS.add(opt(p.id,p.name))); if(model&&model.rarityProfile) profS.value=model.rarityProfile;
+  const biasI=el('input',{type:'number',step:'0.05',min:'0',value:model?(model.rarityBias||0):0});
+  const oddsWrap=el('div',{class:'odds-grid'});
+  function syncOdds(){ const p=profileById(profS.value); const odds=oddsFromWeights(p.weights, Number(biasI.value)||0); oddsWrap.innerHTML=''; odds.forEach((o,i)=>oddsWrap.append(el('div',{class:'cell'},[el('b',{class:'r'+i},RARITIES[i].slice(0,4)), (o*100>=0.01?(o*100).toFixed(2):'<0.01')+'%']))); }
+  profS.onchange=syncOdds; biasI.oninput=syncOdds;
+
+  // boosts
+  const boostsWrap=el('div',{});
+  function boostRow(preset){
+    // A preset whose stat isn't a known BOOST is a previously-typed custom one.
+    const isCustom = !!(preset && preset.stat && !BOOST_BY_KEY[preset.stat]);
+    const sel=el('select',{}); BOOSTS.forEach(b=>sel.add(opt(b.key,(b.active?'':'◇ ')+b.label))); sel.add(opt('__custom__','✎ Custom boost…'));
+    if(preset) sel.value = isCustom ? '__custom__' : preset.stat;
+    const customI=el('input',{placeholder:'custom stat name', value:isCustom?(preset.label||preset.stat):'', style:'max-width:150px'});
+    const customUnit=el('select',{}); customUnit.add(opt('flat','flat')); customUnit.add(opt('percent','%')); if(isCustom&&preset.unit) customUnit.value=preset.unit;
+    const customWrap=el('span',{class:'sub-row',style:'gap:6px;display:none'},[customI, customUnit]);
+    const unit=el('span',{class:'unit-tag'}); const del=el('button',{class:'danger sm',onclick:()=>{ row.remove(); syncBudget(); }},'✕');
+    const grid=el('div',{class:'rarity-grid'}); const inps=[];
+    for(let i=0;i<7;i++){ const inp=el('input',{type:'number',step:'any',value:preset?(preset.values[i]??0):0,oninput:()=>syncBudget()}); inps.push(inp); grid.append(el('div',{class:'cell'},[el('span',{class:'r'+i},RARITIES[i].slice(0,4)), inp])); }
+    function unitOf(){ return sel.value==='__custom__' ? customUnit.value : (BOOST_BY_KEY[sel.value]||{unit:'flat'}).unit; }
+    const ramp=el('button',{type:'button',class:'ghost sm',title:'Interpolate Common → Celestial',onclick:()=>{ const a=Number(inps[0].value)||0, b=Number(inps[6].value)||0; for(let i=0;i<7;i++) inps[i].value=Math.round((a+(b-a)*i/6)*100)/100; syncBudget(); }},'⤢ ramp');
+    const rfill=el('button',{type:'button',class:'ghost sm',title:'Fill all rarities from Common via the +6% rarity guideline',onclick:()=>{ const base=Number(inps[0].value)||0; const pct=unitOf()==='percent'; for(let i=0;i<7;i++){ const v=base*RARITY_MULT[i]; inps[i].value = pct?Math.round(v*100)/100:Math.round(v); } syncBudget(); }},'✦ rarity');
+    function syncUnit(){ const c=sel.value==='__custom__'; customWrap.style.display=c?'':'none'; unit.textContent=unitOf()==='percent'?'%':'flat'; }
+    sel.onchange=()=>{ syncUnit(); syncBudget(); }; customUnit.onchange=()=>{ syncUnit(); syncBudget(); }; customI.oninput=()=>syncBudget(); syncUnit();
+    const row=el('div',{class:'boost-row'},[ el('div',{class:'top'},[sel,customWrap,unit,rfill,ramp,del]), grid ]);
+    row._read=()=>{ if(sel.value==='__custom__'){ const lbl=(customI.value||'').trim(); return {stat:(slug(lbl)||'custom'), unit:customUnit.value, label:lbl||'Custom', values:inps.map(i=>Number(i.value)||0)}; }
+      return {stat:sel.value, unit:(BOOST_BY_KEY[sel.value]||{unit:'flat'}).unit, values:inps.map(i=>Number(i.value)||0)}; };
+    return row;
+  }
+  if(model&&model.boosts&&model.boosts.length) model.boosts.forEach(b=>boostsWrap.append(boostRow(b))); else boostsWrap.append(boostRow());
+
+  // -- Tier derivation: copy a same-slot item's boosts, scaled by the tier gap --
+  const deriveS=el('select',{});
+  const deriveModeS=el('select',{}); deriveModeS.add(opt('flat','flat +'+Math.round(TIER_LINEAR_K*100)+'%/tier')); deriveModeS.add(opt('compound','compound ×'+(Math.round(TIER_FACTOR*1000)/1000)));
+  function refreshDerive(){
+    const slot=slotS.value; const cur=deriveS.value;
+    deriveS.innerHTML=''; deriveS.add(opt('','— same-slot item —'));
+    DB.items.forEach((it,i)=>{ if(i!==idx && it.slot===slot) deriveS.add(opt(String(i), it.name+' (T'+(it.tier||1)+')')); });
+    deriveS.value=cur; if(deriveS.value!==cur) deriveS.value='';
+  }
+  function deriveRecommend(){
+    if(deriveS.value===''){ alert('Pick a same-slot item to derive from.'); return; }
+    const src=DB.items[Number(deriveS.value)]; if(!src) return;
+    const tT=Number(tierI.value)||1, sT=src.tier||1;
+    // flat: each tier adds K×(tier-1 base), so the ratio between two tiers is
+    // (1+K·(tT-1)) / (1+K·(sT-1)); compound: ×TIER_FACTOR per tier.
+    const factor = deriveModeS.value==='compound'
+      ? Math.pow(TIER_FACTOR, tT-sT)
+      : (1+TIER_LINEAR_K*(tT-1)) / (1+TIER_LINEAR_K*(sT-1));
+    boostsWrap.innerHTML='';
+    const list=(src.boosts||[]);
+    if(!list.length){ boostsWrap.append(boostRow()); }
+    else list.forEach(b=>{
+      const isPct=(BOOST_BY_KEY[b.stat]||{}).unit==='percent';
+      const scaled=(b.values||[]).map(v=>{ const x=(Number(v)||0)*factor; return isPct?Math.round(x*100)/100:Math.round(x); });
+      boostsWrap.append(boostRow({stat:b.stat, values:scaled}));
+    });
+    syncBudget();
+  }
+  slotS.onchange=refreshDerive;
+
+  // -- Power budget: Σ(value × weight) at a reference rarity, + each stat's share --
+  const budgetRarS=el('select',{}); RARITIES.forEach((r,i)=>budgetRarS.add(opt(String(i),r))); budgetRarS.value='0';
+  const budgetTotal=el('span',{class:'help'});
+  const budgetWrap=el('div',{class:'odds-grid'});
+  budgetRarS.onchange=()=>syncBudget();
+  function syncBudget(){
+    const ri=Number(budgetRarS.value)||0;
+    const rows=[...boostsWrap.querySelectorAll('.boost-row')].map(r=>r._read());
+    let total=0; const parts=[];
+    rows.forEach(b=>{ const v=Number(b.values[ri])||0; const imp=v*statWeight(b.stat); if(imp){ total+=imp; parts.push({stat:b.stat,label:b.label,imp}); } });
+    budgetWrap.innerHTML='';
+    parts.sort((a,b)=>Math.abs(b.imp)-Math.abs(a.imp)).forEach(p=>{
+      const pct=total?Math.round(p.imp/total*100):0;
+      const label=((BOOST_BY_KEY[p.stat]||{}).label||p.label||p.stat).replace(/ [+−].*$/,'');
+      budgetWrap.append(el('div',{class:'cell'},[el('b',{},label), pct+'%']));
+    });
+    if(!parts.length) budgetWrap.append(el('div',{class:'cell'},[el('span',{class:'help'},'no boosts')]));
+    budgetTotal.textContent='Power budget @ '+RARITIES[ri]+': '+(Math.round(total*100)/100);
+  }
+
+  function collect(){
+    const prev=(idx>=0?DB.items[idx]:null);
+    const boosts=[...boostsWrap.querySelectorAll('.boost-row')].map(r=>r._read());
+    // Crafting (skill/workshop/heat/materials) now lives on Recipes; legacy
+    // fields are preserved verbatim so nothing authored before is lost.
+    return { name:nameI.value, icon:iconPicker.get(), image:imagePicker.get(), slot:slotS.value, levelRequirement:Number(lvlI.value)||0, tier:Math.max(1,Math.min(10,Number(tierI.value)||1)),
+      craftSkill:prev?prev.craftSkill:'', workshop:prev?prev.workshop:'', heat:prev?(prev.heat||0):0, materials:prev?(prev.materials||{}):{},
+      value:Number(valueI.value)||0, sell:Number(sellI.value)||0, rarityProfile:profS.value, rarityBias:Number(biasI.value)||0, enhanceable:enhI.checked, boosts };
+  }
+  function doSave(){ const it=collect(); it.name=(it.name||'').trim(); if(!it.name){ alert('Name the item first.'); return; }
+    it.id=slug(it.name); const taken=idTaken(it.id, idx); if(taken){ alert('That id ("'+it.id+'") is already used by a '+taken.replace(/s$/,'')+'. Rename it.'); return; }
+    it.boosts=it.boosts.filter(b=>b.values.some(v=>v!==0));
+    if(idx>=0) DB.items[idx]=it; else DB.items.push(it); draft.items=null; edit.items=-1; rerender(); }
+
+  const form=el('div',{class:'col'},[
+    el('div',{class:'card'},[
+      el('h2',{},idx>=0?('Editing: '+esc(DB.items[idx].name)):'New item'),
+      el('div',{style:'display:flex;gap:14px;align-items:flex-start'},[ iconPicker.element, el('div',{style:'flex:1'},[el('label',{},'Name'), nameI, idLine]) ]),
+      el('div',{class:'row'},[ el('div',{},[el('label',{},'Slot'),slotS]), el('div',{},[el('label',{},'Level req.'),lvlI]) ]),
+      el('div',{class:'row'},[ el('div',{},[el('label',{},'Tier (1–10)'),tierI]),
+        el('div',{},[el('label',{},'Derive from (same slot)'), el('div',{class:'sub-row'},[el('div',{class:'grow'},deriveS), deriveModeS, el('button',{class:'ghost sm',type:'button',onclick:deriveRecommend},'⤴ recommend')]) ]) ]),
+      el('div',{class:'row'},[ el('div',{},[el('label',{},'Value (buy)'),valueI]), el('div',{},[el('label',{},'Sell price'),sellI]) ]),
+      el('div',{},[el('label',{},'Enhancement'), el('div',{class:'sub-row'},[enhI, el('span',{class:'help'},'Can be enhanced (+N) at its bench')])]),
+      el('label',{},'Artwork (optional, 150×150)'), imagePicker.element,
+      (idx>=0? madeBySummary(DB.items[idx].id)
+             : el('div',{class:'help',style:'margin-top:12px'},'How this item is crafted now lives on the Recipes tab. Save the item first, then add a recipe for it (or use the Recipes tab directly).')),
+    ]),
+    el('div',{class:'card'},[
+      el('h2',{},'Crafting outcome'),
+      el('div',{class:'row'},[ el('div',{},[el('label',{},'Rarity profile'),profS]), el('div',{},[el('label',{},'Per-item bias (warps toward rarity)'),biasI]) ]),
+      el('label',{},'Resulting odds'), oddsWrap,
+    ]),
+    el('div',{class:'card'},[
+      el('h2',{},['Boosts ', el('span',{class:'help'},'(values per rarity: Common → Celestial)')]),
+      boostsWrap, el('button',{class:'ghost sm',onclick:()=>{ boostsWrap.append(boostRow()); syncBudget(); }},'+ Add boost'),
+      el('hr',{}),
+      el('div',{class:'sub-row'},[ el('label',{style:'margin:0'},'Power budget @'), budgetRarS, el('div',{class:'grow'}), budgetTotal ]),
+      el('div',{class:'help'},'Each stat’s share of total impact — aim for similar totals but different spreads so items feel distinct.'),
+      budgetWrap,
+    ]),
+    el('div',{class:'bar'},[
+      el('button',{onclick:doSave}, idx>=0?'Update item':'Add item'),
+      el('button',{class:'ghost',onclick:()=>{draft.items=null; edit.items=-1; renderAll();}},'Clear form'),
+    ]),
+  ]);
+
+  const list=el('div',{class:'col'},[ toolCoverageCard(), el('div',{class:'card'},[
+    el('h2',{},['Items ', el('span',{class:'help'},'('+DB.items.length+')')]),
+    DB.items.length? el('div',{}, DB.items.map((it,i)=>itemCard(it,i))) : el('div',{class:'empty'},'No items yet.'),
+  ])]);
+
+  root.append(form, list); paneRead=collect; syncId(); syncOdds(); refreshDerive(); syncBudget();
+}
+// Tool coverage: one tool per profession (tool slot) × tier — spot the gaps.
+function toolCoverageCard(){
+  const toolSlots=(SLOT_GROUPS.find(g=>g.label==='Tools')||{slots:[]}).slots;
+  const maxTier=Math.max(1, ...DB.items.map(it=>it.tier||1));
+  const grid={};
+  DB.items.forEach(it=>{ if(!toolSlots.includes(it.slot))return; const t=it.tier||1; (grid[it.slot]=grid[it.slot]||{}); (grid[it.slot][t]=grid[it.slot][t]||[]).push(it.name); });
+  const head=[el('th',{},'Tool')]; for(let t=1;t<=maxTier;t++) head.push(el('th',{},'T'+t));
+  const rows=[el('tr',{},head)];
+  toolSlots.forEach(sl=>{ const cells=[el('td',{class:'cat'}, SLOT_LABELS[sl]||sl)];
+    for(let t=1;t<=maxTier;t++){ const names=(grid[sl]&&grid[sl][t])||[]; const ok=names.length>0;
+      cells.push(el('td',{class:ok?'cov-ok':'cov-gap', title:ok?names.join(', '):'missing'}, ok?(names.length>1?('● '+names.length):'●'):'—')); }
+    rows.push(el('tr',{},cells)); });
+  return el('div',{class:'card'},[
+    el('h2',{},['Tool coverage ', el('span',{class:'help'},'(tool per profession × tier — red = still to make)')]),
+    el('table',{class:'cov-table'}, rows),
+  ]);
+}
+function itemCard(it,i){
+  const chip=el('div',{class:'icon-chip',style:'cursor:default'}); renderIconInto(chip,it.icon,it.name);
+  const thumb = it.image ? el('img',{class:'img-thumb', src:it.image, title:'Has 150×150 artwork'}) : null;
+  const recs=recipesForOutput(it.id);
+  const madeBy=recs.length? (recs.length+' recipe'+(recs.length>1?'s':'')) : 'no recipe';
+  const boosts=(it.boosts||[]).map(b=>el('span',{class:'pill'},((BOOST_BY_KEY[b.stat]||{}).label||b.label||b.stat)+': '+b.values.join('/')));
+  return el('div',{class:'listitem'},[ chip, thumb, el('div',{class:'body'},[
+    el('div',{class:'name'},it.name),
+    el('div',{class:'meta'},(SLOT_LABELS[it.slot]||it.slot)+' · T'+(it.tier||1)+' · Lv '+it.levelRequirement+' · '+(it.enhanceable===false?'no-enhance · ':'')+(it.rarityProfile||'standard')+(it.rarityBias?(' +'+it.rarityBias):'')+' · '+madeBy),
+    el('div',{}, boosts.length?boosts:[el('span',{class:'help'},'no boosts')]),
+    el('div',{class:'acts'},[
+      el('button',{class:'ghost sm',onclick:()=>{draft.items=null; edit.items=i; activeTab='items'; renderAll(); window.scrollTo({top:0,behavior:'smooth'});}},'Edit'),
+      el('button',{class:'ghost sm',onclick:()=>dupEntry('items',i)},'Duplicate'),
+      el('button',{class:'danger sm',onclick:()=>{ if(confirm('Remove '+it.name+'?')){ DB.items.splice(i,1); commit(); } }},'Remove'),
+    ]),
+  ])]);
+}
+/* ============================================================================
+   STATIONS  —  authored places a recipe can be made (any skill)
+============================================================================ */
+function stationName(id){ const s=DB.stations.find(x=>x.id===id); return s?s.name:id; }
+function paneStations(root){
+  const idx = edit.stations;
+  const model = draft.stations || (idx>=0 ? DB.stations[idx] : null);
+  let iconPicker;
+  const nameI = el('input',{placeholder:'Early Forge', value:model?model.name:''});
+  const idLine = el('div',{class:'idline'});
+  function syncId(){ const id=slug(nameI.value); const taken=idTaken(id, idx); idLine.className='idline'+(taken?' bad':''); idLine.innerHTML = id?('id: <code>'+id+'</code>'+(taken?' — already used!':'')):'id: <code>—</code>'; iconPicker&&iconPicker.syncName(); }
+  nameI.oninput=syncId;
+  iconPicker = makeIconPicker(model&&model.icon, ()=>nameI.value||'?');
+
+  const skillS = el('select',{}); skillS.add(opt('','— any skill —')); SKILLS.forEach(s=>skillS.add(opt(s.id,s.name))); if(model&&model.skillId) skillS.value=model.skillId;
+  const tierI  = el('input',{type:'number',min:'1',value:model?(model.tier||1):1});
+  const descI  = el('textarea',{class:'code',style:'min-height:64px',placeholder:'What this station is / where it lives (notes only).'}); descI.value=model?(model.desc||''):'';
+
+  function collect(){ return { name:nameI.value, icon:iconPicker.get(), skillId:skillS.value||'', tier:Number(tierI.value)||1, desc:descI.value }; }
+  function doSave(){ const s=collect(); s.name=(s.name||'').trim(); if(!s.name){ alert('Name the station first.'); return; }
+    s.id=slug(s.name); const taken=idTaken(s.id, idx); if(taken){ alert('That id ("'+s.id+'") is already used by a '+taken.replace(/s$/,'')+'. Rename it.'); return; }
+    if(idx>=0) DB.stations[idx]=s; else DB.stations.push(s); draft.stations=null; edit.stations=-1; rerender(); }
+
+  const form = el('div',{class:'col'},[
+    el('div',{class:'card'},[
+      el('h2',{},idx>=0?('Editing: '+esc(DB.stations[idx].name)):'New station'),
+      el('div',{style:'display:flex;gap:14px;align-items:flex-start'},[ iconPicker.element, el('div',{style:'flex:1'},[ el('label',{},'Name'), nameI, idLine ]) ]),
+      el('div',{class:'row'},[ el('div',{},[el('label',{},'Skill (optional)'),skillS]), el('div',{},[el('label',{},'Tier hint'),tierI]) ]),
+      el('label',{style:'margin-top:10px'},'Notes'), descI,
+      el('div',{class:'help',style:'margin-top:6px'},'A station is a place a recipe can be crafted. Recipes pick which stations can make them. Each area will host a station (area↔station wiring comes later).'),
+      el('div',{class:'bar',style:'margin-top:12px'},[
+        el('button',{onclick:doSave}, idx>=0?'Update station':'Add station'),
+        el('button',{class:'ghost',onclick:()=>{draft.stations=null; edit.stations=-1; renderAll();}},'Clear form'),
+      ]),
+    ]),
+  ]);
+  const list = el('div',{class:'col'},[ el('div',{class:'card'},[
+    el('h2',{},['Stations ', el('span',{class:'help'},'('+DB.stations.length+')')]),
+    DB.stations.length? el('div',{}, DB.stations.map((s,i)=>stationCard(s,i))) : el('div',{class:'empty'},'No stations yet.'),
+  ])]);
+  root.append(form, list); paneRead=collect; syncId();
+}
+function stationCard(s,i){
+  const chip=el('div',{class:'icon-chip',style:'cursor:default'}); renderIconInto(chip,s.icon,s.name);
+  const nRec=DB.recipes.filter(r=>(r.stations||[]).includes(s.id)).length;
+  const meta=[(s.skillId?(SKILLS.find(x=>x.id===s.skillId)||{}).name:'any skill'),'T'+(s.tier||1), nRec+' recipe(s)'].join(' · ');
+  return el('div',{class:'listitem'},[ chip, el('div',{class:'body'},[
+    el('div',{class:'name'},s.name), el('div',{class:'meta'},'id: '+s.id+' · '+meta),
+    s.desc? el('div',{class:'help'},s.desc) : null,
+    el('div',{class:'acts'},[
+      el('button',{class:'ghost sm',onclick:()=>{draft.stations=null; edit.stations=i; activeTab='stations'; renderAll(); window.scrollTo({top:0,behavior:'smooth'});}},'Edit'),
+      el('button',{class:'ghost sm',onclick:()=>dupEntry('stations',i)},'Duplicate'),
+      el('button',{class:'danger sm',onclick:()=>{ if(confirm('Remove '+s.name+'?')){ DB.stations.splice(i,1); commit(); } }},'Remove'),
+    ]),
+  ])]);
+}
+
+/* ============================================================================
+   RECIPES  —  first-class crafts (output ← inputs, made at stations)
+============================================================================ */
+function recipesForOutput(id){ const out=[]; DB.recipes.forEach((r,i)=>{ if(r.outputId===id) out.push({r,i}); }); return out; }
+function recipeTitle(r){ return (r.name&&r.name.trim()) || (r.outputId? matName(r.outputId) : 'Untitled recipe'); }
+// Read-only "made by these recipes" block for the Items / Materials editors,
+// with a shortcut to author a new recipe for this output.
+function madeBySummary(resId){
+  const rows=recipesForOutput(resId);
+  const kids=[ el('label',{style:'margin-top:12px'},'Made by these recipes') ];
+  if(rows.length){ rows.forEach(({r,i})=>{ kids.push(el('div',{class:'sub-row',style:'align-items:center'},[
+    el('div',{class:'grow'},[ el('span',{class:'pill'},recipeTitle(r)),
+      ' ', el('span',{class:'help'}, Object.entries(r.inputs||{}).map(([k,v])=>matName(k)+'×'+v).join(', ')||'no inputs'),
+      (r.stations&&r.stations.length)? el('span',{class:'help'},' · @ '+r.stations.map(stationName).join(', ')) : el('span',{class:'help'},' · @ any') ]),
+    el('button',{class:'ghost sm',onclick:()=>{ draft.recipes=null; edit.recipes=i; activeTab='recipes'; renderAll(); window.scrollTo({top:0,behavior:'smooth'}); }},'Edit'),
+  ])); }); }
+  else { kids.push(el('div',{class:'help'},'Not produced by any recipe yet.')); }
+  kids.push(el('button',{class:'ghost sm',style:'margin-top:6px',onclick:()=>{
+    draft.recipes={ name:'', outputId:resId, outputQty:1, inputs:{}, skillId:'', heat:0, level:0, stations:[], tags:[] };
+    edit.recipes=-1; activeTab='recipes'; renderAll(); window.scrollTo({top:0,behavior:'smooth'});
+  }},'+ New recipe for this →'));
+  return el('div',{},kids);
+}
+function paneRecipes(root){
+  const idx = edit.recipes;
+  const model = draft.recipes || (idx>=0 ? DB.recipes[idx] : null);
+  const nameI = el('input',{placeholder:'(optional — defaults to the output name)', value:model?(model.name||''):''});
+  const idLine = el('div',{class:'idline'});
+
+  const outputS = resourceSelect(model?model.outputId:null);
+  const outQtyI = el('input',{type:'number',min:'1',value:model?(model.outputQty||1):1,style:'max-width:80px'});
+  function effId(){ const n=(nameI.value||'').trim(); return slug(n||('recipe_'+(outputS.value||''))); }
+  function syncId(){ const id=effId(); const taken=idTaken(id, idx); idLine.className='idline'+(taken?' bad':''); idLine.innerHTML = id?('id: <code>'+id+'</code>'+(taken?' — already used!':'')):'id: <code>—</code>'; }
+  nameI.oninput=syncId; outputS.onchange=syncId;
+
+  const skillS = el('select',{}); skillS.add(opt('','— skill —')); SKILLS.forEach(s=>skillS.add(opt(s.id,s.name))); if(model&&model.skillId) skillS.value=model.skillId;
+  const heatI  = el('input',{type:'number',min:'0',value:model?(model.heat||0):0});
+  const levelI = el('input',{type:'number',min:'0',value:model?(model.level||0):0});
+  const tagsI  = el('input',{placeholder:'comma,separated,tags', value:model?((model.tags||[]).join(', ')):''});
+
+  // inputs
+  const inputsWrap = el('div',{});
+  function inputRow(resId,qty){ const rs=resourceSelect(resId); const q=el('input',{type:'number',min:'1',value:qty||1,style:'max-width:80px'}); const del=el('button',{class:'danger sm',onclick:()=>row.remove()},'✕'); const row=el('div',{class:'sub-row'},[el('div',{class:'grow'},rs),q,del]); return row; }
+  if(model) Object.entries(model.inputs||{}).forEach(([k,v])=>inputsWrap.append(inputRow(k,v)));
+
+  // station multi-select chips
+  const stations = new Set(model&&Array.isArray(model.stations)?model.stations:[]);
+  const stWrap = el('div',{class:'chips'});
+  function renderSt(){ stWrap.innerHTML=''; if(!DB.stations.length){ stWrap.append(el('span',{class:'help'},'No stations yet — create them in the Stations tab. (Blank = craftable anywhere.)')); return; }
+    DB.stations.forEach(s=>{ const on=stations.has(s.id); stWrap.append(el('button',{class:'ghost sm chip'+(on?' sel':''),onclick:()=>{ on?stations.delete(s.id):stations.add(s.id); renderSt(); }}, s.name)); }); }
+  renderSt();
+
+  function collect(){ const inputs={}; inputsWrap.querySelectorAll('.sub-row').forEach(r=>{ const id2=r.querySelector('select').value; const q=Number(r.querySelector('input').value)||0; if(id2&&q>0) inputs[id2]=q; });
+    const tags=tagsI.value.split(',').map(t=>t.trim()).filter(Boolean);
+    return { name:nameI.value.trim(), outputId:outputS.value||'', outputQty:Math.max(1,Number(outQtyI.value)||1), inputs, skillId:skillS.value||'', heat:Number(heatI.value)||0, level:Number(levelI.value)||0, stations:[...stations], tags }; }
+  function doSave(){ const r=collect(); if(!r.outputId){ alert('Pick what this recipe produces (Output).'); return; }
+    if(!Object.keys(r.inputs).length){ if(!confirm('This recipe has no inputs. Save anyway?')) return; }
+    r.id=effId(); const taken=idTaken(r.id, idx); if(taken){ alert('That id ("'+r.id+'") is already used by a '+taken.replace(/s$/,'')+'. Rename the recipe.'); return; }
+    if(idx>=0) DB.recipes[idx]=r; else DB.recipes.push(r); draft.recipes=null; edit.recipes=-1; rerender(); }
+
+  const form = el('div',{class:'col'},[
+    el('div',{class:'card'},[
+      el('h2',{},idx>=0?('Editing recipe: '+esc(recipeTitle(DB.recipes[idx]))):'New recipe'),
+      el('div',{class:'row'},[ el('div',{},[el('label',{},'Output'),outputS]), el('div',{},[el('label',{},'Output qty'),outQtyI]) ]),
+      el('label',{},'Recipe name (optional)'), nameI, idLine,
+      el('div',{class:'row',style:'margin-top:10px'},[ el('div',{},[el('label',{},'Crafting skill'),skillS]), el('div',{},[el('label',{},'Heat used'),heatI]) ]),
+      el('div',{class:'row'},[ el('div',{},[el('label',{},'Level req.'),levelI]), el('div',{},[el('label',{},'Tags (for modifiers)'),tagsI]) ]),
+      el('label',{style:'margin-top:12px'},'Inputs (materials or items consumed)'), inputsWrap,
+      el('button',{class:'ghost sm',onclick:()=>{ if(!DB.materials.length&&!DB.items.length){alert('Create a material or item first.');return;} inputsWrap.append(inputRow('',1)); }},'+ Add input'),
+    ]),
+    el('div',{class:'card'},[
+      el('h2',{},'Available at stations'),
+      el('div',{class:'help',style:'margin-bottom:8px'},'Tick every station that can craft this. Leave all unticked = craftable anywhere.'),
+      stWrap,
+    ]),
+    el('div',{class:'bar'},[
+      el('button',{onclick:doSave}, idx>=0?'Update recipe':'Add recipe'),
+      el('button',{class:'ghost',onclick:()=>{draft.recipes=null; edit.recipes=-1; renderAll();}},'Clear form'),
+    ]),
+  ]);
+  const list = el('div',{class:'col'},[ el('div',{class:'card'},[
+    el('h2',{},['Recipes ', el('span',{class:'help'},'('+DB.recipes.length+')')]),
+    DB.recipes.length? el('div',{}, DB.recipes.map((r,i)=>recipeCard(r,i))) : el('div',{class:'empty'},'No recipes yet.'),
+  ])]);
+  root.append(form, list); paneRead=collect; syncId();
+}
+function recipeCard(r,i){
+  const inputs=Object.entries(r.inputs||{}).map(([k,v])=>matName(k)+'×'+v);
+  const sk=r.skillId?(SKILLS.find(x=>x.id===r.skillId)||{}).name:'no skill';
+  const where=(r.stations&&r.stations.length)?r.stations.map(stationName).join(', '):'anywhere';
+  return el('div',{class:'listitem'},[ el('div',{class:'body'},[
+    el('div',{class:'name'}, recipeTitle(r)+(r.outputQty>1?(' ×'+r.outputQty):'')),
+    el('div',{class:'meta'},'id: '+r.id+' · makes '+(r.outputId?matName(r.outputId):'—')+' · '+sk+(r.heat?(' · '+r.heat+' heat'):'')+(r.level?(' · Lv '+r.level):'')+' · @ '+where),
+    el('div',{}, inputs.length? inputs.map(t=>el('span',{class:'pill'},t)) : [el('span',{class:'help'},'no inputs')]),
+    (r.tags&&r.tags.length)? el('div',{}, r.tags.map(t=>el('span',{class:'pill',style:'opacity:.7'},'#'+t))) : null,
+    el('div',{class:'acts'},[
+      el('button',{class:'ghost sm',onclick:()=>{draft.recipes=null; edit.recipes=i; activeTab='recipes'; renderAll(); window.scrollTo({top:0,behavior:'smooth'});}},'Edit'),
+      el('button',{class:'ghost sm',onclick:()=>dupEntry('recipes',i)},'Duplicate'),
+      el('button',{class:'danger sm',onclick:()=>{ if(confirm('Remove recipe '+recipeTitle(r)+'?')){ DB.recipes.splice(i,1); commit(); } }},'Remove'),
+    ]),
+  ])]);
+}
+
+/* ============================================================================
+   ACTIONS
+============================================================================ */
+function paneActions(root){
+  const idx = edit.actions;
+  const model = draft.actions || (idx>=0 ? DB.actions[idx] : null);
+  const nameI=el('input',{placeholder:'Mine Copper', value:model?model.name:''});
+  const idLine=el('div',{class:'idline'});
+  function syncId(){ const id=slug(nameI.value); const taken=idTaken(id, idx); idLine.className='idline'+(taken?' bad':''); idLine.innerHTML=id?('id: <code>'+id+'</code>'+(taken?' — already used!':'')):'id: <code>—</code>'; }
+  nameI.oninput=syncId;
+  const skillS=el('select',{}); SKILLS.forEach(s=>skillS.add(opt(s.id,s.name))); if(model&&model.skillId) skillS.value=model.skillId;
+  const lvlI=el('input',{type:'number',min:'1',value:model?(model.levelRequired||1):1});
+  const stepI=el('input',{type:'number',min:'1',value:model?(model.stepCost||50):50});
+  const xpI=el('input',{type:'number',min:'0',value:model?(model.xp||0):0});
+  const toolS=resourceSelect(model?model.tool:'', {materials:false}); // tool is an item
+
+  const dropsWrap=el('div',{});
+  function dropRow(d){ const rs=resourceSelect(d?d.resource:'',{}); const qmin=el('input',{type:'number',min:'0',value:d?d.qtyMin:1,style:'max-width:70px'}); const qmax=el('input',{type:'number',min:'0',value:d?d.qtyMax:1,style:'max-width:70px'}); const w=el('input',{type:'number',min:'1',value:d?d.weight:100,style:'max-width:80px'}); const del=el('button',{class:'danger sm',onclick:()=>row.remove()},'✕'); const row=el('div',{class:'sub-row'},[ el('div',{class:'grow'},rs), el('span',{class:'help'},'qty'), qmin, el('span',{class:'help'},'–'), qmax, el('span',{class:'help'},'wt'), w, del ]); return row; }
+  if(model&&model.drops) model.drops.forEach(d=>dropsWrap.append(dropRow(d)));
+
+  function collect(){ const drops=[...dropsWrap.querySelectorAll('.sub-row')].map(r=>{ const ins=r.querySelectorAll('input'); return {resource:r.querySelector('select').value, qtyMin:Number(ins[0].value)||0, qtyMax:Number(ins[1].value)||0, weight:Number(ins[2].value)||0}; });
+    return { name:nameI.value, skillId:skillS.value, levelRequired:Number(lvlI.value)||1, stepCost:Number(stepI.value)||50, xp:Number(xpI.value)||0, tool:toolS.value||'', drops }; }
+  function doSave(){ const a=collect(); a.name=(a.name||'').trim(); if(!a.name){ alert('Name the action first.'); return; }
+    a.id=slug(a.name); const taken=idTaken(a.id, idx); if(taken){ alert('That id ("'+a.id+'") is already used by a '+taken.replace(/s$/,'')+'. Rename it.'); return; }
+    a.drops=a.drops.filter(d=>d.resource&&d.weight>0);
+    if(idx>=0) DB.actions[idx]=a; else DB.actions.push(a); draft.actions=null; edit.actions=-1; rerender(); }
+
+  const form=el('div',{class:'col'},[ el('div',{class:'card'},[
+    el('h2',{},idx>=0?('Editing: '+esc(DB.actions[idx].name)):'New action'),
+    el('label',{},'Name'), nameI, idLine,
+    el('div',{class:'row'},[ el('div',{},[el('label',{},'Skill'),skillS]), el('div',{},[el('label',{},'Level required'),lvlI]) ]),
+    el('div',{class:'row'},[ el('div',{},[el('label',{},'Step cost'),stepI]), el('div',{},[el('label',{},'XP reward'),xpI]) ]),
+    el('label',{},'Tool required (optional item)'), toolS,
+    el('label',{},'Drops (weighted)'), dropsWrap,
+    el('button',{class:'ghost sm',onclick:()=>{ if(!DB.materials.length&&!DB.items.length){alert('Create a material or item to drop first.');return;} dropsWrap.append(dropRow()); }},'+ Add drop'),
+    el('div',{class:'bar',style:'margin-top:12px'},[
+      el('button',{onclick:doSave}, idx>=0?'Update action':'Add action'),
+      el('button',{class:'ghost',onclick:()=>{draft.actions=null; edit.actions=-1; renderAll();}},'Clear form'),
+    ]),
+    el('details',{},[ el('summary',{},'About actions'), el('p',{class:'help'},'An action belongs to a skill and yields a weighted drop table. Weights work like rarity: a drop with weight 100 vs 25 is 4× as likely. Where actions appear in the world (areas) comes in the next phase.') ]),
+  ])]);
+
+  const list=el('div',{class:'col'},[ el('div',{class:'card'},[
+    el('h2',{},['Actions ', el('span',{class:'help'},'('+DB.actions.length+')')]),
+    DB.actions.length? el('div',{}, DB.actions.map((a,i)=>actionCard(a,i))) : el('div',{class:'empty'},'No actions yet.'),
+  ])]);
+  root.append(form,list); paneRead=collect; syncId();
+}
+function actionCard(a,i){
+  const sk=(SKILLS.find(s=>s.id===a.skillId)||{}).name||a.skillId;
+  const drops=(a.drops||[]).map(d=>el('span',{class:'pill'},matName(d.resource)+' ×'+(d.qtyMin===d.qtyMax?d.qtyMin:(d.qtyMin+'-'+d.qtyMax))+' ('+d.weight+')'));
+  return el('div',{class:'listitem'},[ el('div',{class:'body'},[
+    el('div',{class:'name'},a.name),
+    el('div',{class:'meta'},sk+' · Lv '+(a.levelRequired||1)+' · '+(a.stepCost||50)+' steps'+(a.xp?(' · '+a.xp+' xp'):'')+(a.tool?(' · tool: '+matName(a.tool)):'')),
+    el('div',{}, drops.length?drops:[el('span',{class:'help'},'no drops')]),
+    el('div',{class:'acts'},[
+      el('button',{class:'ghost sm',onclick:()=>{draft.actions=null; edit.actions=i; activeTab='actions'; renderAll(); window.scrollTo({top:0,behavior:'smooth'});}},'Edit'),
+      el('button',{class:'ghost sm',onclick:()=>dupEntry('actions',i)},'Duplicate'),
+      el('button',{class:'danger sm',onclick:()=>{ if(confirm('Remove '+a.name+'?')){ DB.actions.splice(i,1); commit(); } }},'Remove'),
+    ]),
+  ])]);
+}
+/* ============================================================================
+   RARITY PROFILES
+============================================================================ */
+function paneProfiles(root){
+  const idx = edit.profiles;
+  const model = draft.profiles || (idx>=0 ? DB.rarityProfiles[idx] : null);
+  const nameI=el('input',{placeholder:'Fine', value:model?model.name:''});
+  const idLine=el('div',{class:'idline'});
+  function syncId(){ const id=slug(nameI.value); const taken=idTaken(id, idx); idLine.className='idline'+(taken?' bad':''); idLine.innerHTML=id?('id: <code>'+id+'</code>'+(taken?' — already used!':'')):'id: <code>—</code>'; }
+  nameI.oninput=syncId;
+  const grid=el('div',{class:'rarity-grid'}); const inps=[];
+  for(let i=0;i<7;i++){ const inp=el('input',{type:'number',min:'0',value:model?(model.weights[i]||0):(DEFAULT_PROFILES[0].weights[i])}); inps.push(inp); inp.oninput=syncOdds; grid.append(el('div',{class:'cell'},[el('span',{class:'r'+i},RARITIES[i].slice(0,4)), inp])); }
+  const oddsWrap=el('div',{class:'odds-grid'});
+  function syncOdds(){ const odds=oddsFromWeights(inps.map(i=>Number(i.value)||0),0); oddsWrap.innerHTML=''; odds.forEach((o,i)=>oddsWrap.append(el('div',{class:'cell'},[el('b',{class:'r'+i},RARITIES[i].slice(0,4)), (o*100>=0.01?(o*100).toFixed(2):'<0.01')+'%']))); }
+
+  function collect(){ return { name:nameI.value, weights:inps.map(i=>Number(i.value)||0) }; }
+  function doSave(){ const p=collect(); p.name=(p.name||'').trim(); if(!p.name){ alert('Name the profile first.'); return; }
+    p.id=slug(p.name); const taken=idTaken(p.id, idx); if(taken){ alert('That id ("'+p.id+'") is already used by a '+taken.replace(/s$/,'')+'. Rename it.'); return; }
+    if(idx>=0) DB.rarityProfiles[idx]=p; else DB.rarityProfiles.push(p); draft.profiles=null; edit.profiles=-1; rerender(); }
+
+  const form=el('div',{class:'col'},[ el('div',{class:'card'},[
+    el('h2',{},idx>=0?('Editing: '+esc(DB.rarityProfiles[idx].name)):'New rarity profile'),
+    el('label',{},'Name'), nameI, idLine,
+    el('label',{},'Weights (Common → Celestial)'), grid,
+    el('label',{},'Resulting odds'), oddsWrap,
+    el('div',{class:'bar',style:'margin-top:12px'},[
+      el('button',{onclick:doSave}, idx>=0?'Update profile':'Add profile'),
+      el('button',{class:'ghost',onclick:()=>{draft.profiles=null; edit.profiles=-1; renderAll();}},'Clear form'),
+    ]),
+    el('p',{class:'help'},'Assign a profile to an item on the Items tab. The optional per-item bias warps the chosen profile toward higher rarities (same math as the in-game Crafting Outcome mod).'),
+  ])]);
+  const list=el('div',{class:'col'},[ el('div',{class:'card'},[
+    el('h2',{},['Rarity profiles ', el('span',{class:'help'},'('+DB.rarityProfiles.length+')')]),
+    el('div',{}, DB.rarityProfiles.map((p,i)=>profileCard(p,i))),
+  ])]);
+  root.append(form,list); paneRead=collect; syncId(); syncOdds();
+}
+function profileCard(p,i){
+  const used=DB.items.filter(it=>it.rarityProfile===p.id).length;
+  const odds=oddsFromWeights(p.weights,0);
+  return el('div',{class:'listitem'},[ el('div',{class:'body'},[
+    el('div',{class:'name'},p.name+'  '), el('div',{class:'meta'},'id: '+p.id+' · used by '+used+' item(s)'),
+    el('div',{}, odds.map((o,j)=>el('span',{class:'pill'},RARITIES[j].slice(0,4)+' '+(o*100>=0.01?(o*100).toFixed(1):'<0.01')+'%'))),
+    el('div',{class:'acts'},[
+      el('button',{class:'ghost sm',onclick:()=>{draft.profiles=null; edit.profiles=i; activeTab='profiles'; renderAll(); window.scrollTo({top:0,behavior:'smooth'});}},'Edit'),
+      DB.rarityProfiles.length>1? el('button',{class:'danger sm',onclick:()=>{ if(confirm('Remove profile '+p.name+'?')){ DB.rarityProfiles.splice(i,1); commit(); } }},'Remove') : null,
+    ]),
+  ])]);
+}
+/* ============================================================================
+   VALIDATE
+============================================================================ */
+function validate(){
+  const probs=[];
+  const matIds=new Set(DB.materials.map(m=>m.id));
+  const itemIds=new Set(DB.items.map(i=>i.id));
+  const profIds=new Set(DB.rarityProfiles.map(p=>p.id));
+  const anyRes=new Set([...matIds,...itemIds]);
+  const stationIds=new Set(DB.stations.map(s=>s.id));
+  // duplicate ids across all kinds
+  const seen={};
+  ['materials','items','recipes','stations','actions','rarityProfiles'].forEach(k=>DB[k].forEach(e=>{ if(seen[e.id]) probs.push({level:'error',msg:'Duplicate id "'+e.id+'" (in '+seen[e.id]+' and '+k+')'}); else seen[e.id]=k; }));
+  // items → profile
+  DB.items.forEach(it=>{
+    if(it.rarityProfile && !profIds.has(it.rarityProfile)) probs.push({level:'error',msg:'Item "'+it.name+'" uses unknown rarity profile "'+it.rarityProfile+'".'});
+    if(!(it.boosts||[]).length) probs.push({level:'warn',msg:'Item "'+it.name+'" has no boosts.'});
+  });
+  // recipes → output / inputs / stations
+  DB.recipes.forEach(r=>{
+    const label=recipeTitle(r);
+    if(!r.outputId) probs.push({level:'error',msg:'Recipe "'+label+'" has no output.'});
+    else if(!anyRes.has(r.outputId)) probs.push({level:'error',msg:'Recipe "'+label+'" outputs "'+r.outputId+'", which is neither a material nor an item.'});
+    Object.keys(r.inputs||{}).forEach(x=>{ if(!anyRes.has(x)) probs.push({level:'error',msg:'Recipe "'+label+'" needs "'+x+'", which is neither a material nor an item.'}); });
+    if(!Object.keys(r.inputs||{}).length) probs.push({level:'warn',msg:'Recipe "'+label+'" has no inputs.'});
+    (r.stations||[]).forEach(s=>{ if(!stationIds.has(s)) probs.push({level:'error',msg:'Recipe "'+label+'" is set at station "'+s+'", which no station defines.'}); });
+  });
+  // actions → drops / tool
+  DB.actions.forEach(a=>{
+    (a.drops||[]).forEach(d=>{ if(d.resource && !anyRes.has(d.resource)) probs.push({level:'error',msg:'Action "'+a.name+'" drops "'+d.resource+'", which is neither a material nor an item.'}); if(d.qtyMax<d.qtyMin) probs.push({level:'warn',msg:'Action "'+a.name+'" has a drop with max < min qty.'}); });
+    if(a.tool && !itemIds.has(a.tool)) probs.push({level:'error',msg:'Action "'+a.name+'" requires tool "'+a.tool+'", which no item defines.'});
+    if(!(a.drops||[]).length) probs.push({level:'warn',msg:'Action "'+a.name+'" has no drops.'});
+  });
+  // sourcing coverage: materials with no producer (not made by a recipe, not dropped, not source skill only)
+  const produced=new Set();
+  DB.actions.forEach(a=>(a.drops||[]).forEach(d=>produced.add(d.resource)));
+  DB.recipes.forEach(r=>{ if(r.outputId) produced.add(r.outputId); });
+  DB.materials.forEach(m=>{ if(!produced.has(m.id)) probs.push({level:'warn',msg:'Material "'+m.name+'" has no source (no action drops it and no recipe makes it).'}); });
+  return probs;
+}
+function paneValidate(root){
+  const probs=validate();
+  const errs=probs.filter(p=>p.level==='error'); const warns=probs.filter(p=>p.level==='warn');
+  root.append(el('div',{class:'col'},[ el('div',{class:'card'},[
+    el('h2',{},'Validation'),
+    (!probs.length)? el('div',{class:'val-ok'},'✓ All good — every reference resolves.') : el('div',{},[
+      el('div',{class:'help',style:'margin-bottom:10px'}, errs.length+' error(s), '+warns.length+' warning(s). Errors mean a reference points at something undefined — fix before relying on it in-game. Warnings are reminders.'),
+      ...errs.map(p=>el('div',{class:'val-line error'},'⛔ '+p.msg)),
+      ...warns.map(p=>el('div',{class:'val-line warn'},'⚠ '+p.msg)),
+    ]),
+  ])]));
+}
+
+/* ============================================================================
+   EXPORT / IMPORT
+============================================================================ */
+function payload(){ return { version:3, rarities:RKEYS, rarityProfiles:DB.rarityProfiles, materials:DB.materials, items:DB.items, recipes:DB.recipes, stations:DB.stations, actions:DB.actions, kins:DB.kins, regions:DB.regions, areas:DB.areas }; }
+function paneExport(root){
+  const out=el('textarea',{class:'code',readonly:'true'}); out.value=JSON.stringify(payload(),null,2);
+  root.append(el('div',{class:'col'},[ syncCard(), el('div',{class:'card'},[
+    el('h2',{},'Export / Import'),
+    el('div',{class:'bar'},[
+      el('button',{onclick:downloadJSON},'⬇ Download content.json'),
+      el('button',{class:'ghost',onclick:()=>{ out.select(); try{navigator.clipboard.writeText(out.value);}catch(e){document.execCommand('copy');} }},'Copy JSON'),
+      el('label',{class:'ghost sm',style:'display:inline-block;background:transparent;color:var(--green);border:1px solid var(--green);border-radius:8px;padding:9px 14px;cursor:pointer;font-weight:700'},[ 'Import JSON', el('input',{type:'file',accept:'application/json',style:'display:none',onchange:importJSON}) ]),
+      el('button',{class:'danger',onclick:()=>{ if(confirm('Clear ALL content from the editor? (Export first if unsure.)')){ DB=blankDB(); edit={materials:-1,items:-1,recipes:-1,stations:-1,actions:-1,profiles:-1}; draft={materials:null,items:null,recipes:null,stations:null,actions:null,profiles:null}; commit(); } }},'Reset all'),
+    ]),
+    el('p',{class:'help'},'Save the file as <code>assets/content.json</code> in the game. Import accepts this bundle or an old <code>items.json</code>.'),
+    out,
+  ])]));
+}
+// Cloud-sync config card (Export tab). Token + gist id live in localStorage only.
+function syncCard(){
+  loadSyncCfg();
+  const tokenI=el('input',{type:'password',placeholder:'ghp_… (classic token, gist scope)',value:SYNC.token||'',autocomplete:'off'});
+  const gistI =el('input',{placeholder:'auto-created on first sync',value:SYNC.gistId||''});
+  const autoC =el('input',{type:'checkbox'}); autoC.checked=SYNC.auto!==false;
+  const statusL=el('div',{class:'help',style:'margin-top:6px'});
+  function refresh(){ statusL.innerHTML = SYNC.gistId
+      ? ('Connected · gist <code>'+esc(SYNC.gistId)+'</code> · rev '+SYNC.rev+(SYNC.lastAt?(' · last '+relTime(SYNC.lastAt)):''))
+      : (SYNC.token?'Token saved — “Save & sync now” creates the shared gist.':'Not connected.'); }
+  refresh();
+  function saveCfg(){ SYNC.token=tokenI.value.trim(); SYNC.gistId=gistI.value.trim(); SYNC.auto=autoC.checked; saveSyncCfg(); }
+  const doSaveSync=async()=>{ saveCfg(); if(!SYNC.token){ alert('Paste a GitHub token first (classic, “gist” scope only).'); return; } await pushCloud(false); gistI.value=SYNC.gistId||''; refresh(); };
+  const doPull   =async()=>{ saveCfg(); await pullCloud(); refresh(); };
+  const doForce  =async()=>{ saveCfg(); if(confirm('Force push overwrites the cloud copy with THIS device’s content, even if the cloud is newer. Continue?')){ await pushCloud(true); refresh(); } };
+  const doDisc   =()=>{ if(confirm('Disconnect sync on this device? (Your local content stays; the cloud gist is untouched.)')){ SYNC={token:'',gistId:'',device:SYNC.device,rev:0,lastAt:0,auto:true}; saveSyncCfg(); tokenI.value='';gistI.value='';autoC.checked=true; setSyncStatus('sync off'); refresh(); } };
+  return el('div',{class:'card'},[
+    el('h2',{},['☁ Cloud sync ', el('span',{class:'help'},'(work across devices)')]),
+    el('p',{class:'help'},'Syncs your content to a private GitHub Gist so bed / lunch / phone all share one copy — no more juggling the file. Create a token at github.com/settings/tokens (classic) with ONLY the <code>gist</code> scope, and paste it on each device. It’s stored in this browser only.'),
+    el('div',{class:'row'},[ el('div',{},[el('label',{},'GitHub token'),tokenI]), el('div',{},[el('label',{},'Gist id'),gistI]) ]),
+    el('label',{style:'display:flex;gap:8px;align-items:center;cursor:pointer;margin-top:10px'},[autoC, el('span',{},'Auto: pull when I open this tool, push a few seconds after each change')]),
+    statusL,
+    el('div',{class:'bar',style:'margin-top:10px'},[
+      el('button',{onclick:doSaveSync},'Save & sync now'),
+      el('button',{class:'ghost',onclick:doPull},'↻ Pull'),
+      el('button',{class:'ghost',onclick:doForce},'⬆ Force push'),
+      el('button',{class:'danger',onclick:doDisc},'Disconnect'),
+    ]),
+  ]);
+}
+function downloadJSON(){ const blob=new Blob([JSON.stringify(payload(),null,2)],{type:'application/json'}); const a=el('a',{href:URL.createObjectURL(blob),download:'content.json'}); a.click(); URL.revokeObjectURL(a.href); }
+function importJSON(ev){ const f=ev.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ try{
+    const d=JSON.parse(r.result);
+    if(Array.isArray(d)){ DB=normalizeDB({...blankDB(), items:d}, true); } // bare items array (legacy)
+    else { DB=normalizeDB(d, !('recipes' in d)); }
+    edit={materials:-1,items:-1,recipes:-1,stations:-1,actions:-1,profiles:-1}; draft={materials:null,items:null,recipes:null,stations:null,actions:null,profiles:null}; commit();
+  }catch(e){ alert('Could not parse: '+e.message); } }; r.readAsText(f); ev.target.value=''; }
+
+// ── commit = save + re-render ─────────────────────────────────────────────────
+// commit() preserves the open form (list mutations like Duplicate/Remove);
+// rerender() persists + redraws without stashing (used right after a save clears
+// the draft on purpose).
+function rerender(){ save(); renderAll(); }
+function commit(){ stashDraft(); save(); renderAll(); }
+
+/* ============================================================================
+   CLOUD SYNC  —  auto pull-on-open + debounced push, backed by a private Gist.
+   The data lives in one secret Gist file; each device stores a GitHub token
+   (gist scope) + the gist id in localStorage only (never in this page's source).
+   A monotonic `rev` guards against one device silently clobbering another.
+============================================================================ */
+const SYNC_CFG_KEY='trackkin_forge_sync_cfg';
+const SYNC_FILE='trackkin_content.json';
+let SYNC={ token:'', gistId:'', device:'', rev:0, lastAt:0, auto:true };
+let applyingRemote=false;   // true while adopting a pulled DB (suppresses push echo)
+let pushTimer=null;
+function loadSyncCfg(){ try{ const s=localStorage.getItem(SYNC_CFG_KEY); if(s) SYNC={...SYNC, ...JSON.parse(s)}; }catch(e){}
+  if(!SYNC.device) SYNC.device='dev_'+Math.random().toString(36).slice(2,8); }
+function saveSyncCfg(){ try{ localStorage.setItem(SYNC_CFG_KEY, JSON.stringify(SYNC)); }catch(e){} }
+function syncConfigured(){ return !!(SYNC.token && SYNC.auto!==undefined); }
+function setSyncStatus(msg, bad){ const el=document.getElementById('syncbar'); if(!el) return;
+  el.textContent='☁ '+msg; el.style.color=bad?'#ffb4a2':'#c9c2b4'; el.style.background=bad?'#3a231d':'#2a2620'; }
+function relTime(ts){ if(!ts) return ''; const s=Math.round((Date.now()-ts)/1000); if(s<60) return s+'s ago'; if(s<3600) return Math.round(s/60)+'m ago'; return Math.round(s/3600)+'h ago'; }
+
+async function ghFetch(path, opts={}){
+  const r=await fetch('https://api.github.com'+path, {...opts, headers:{
+    'Authorization':'token '+SYNC.token, 'Accept':'application/vnd.github+json', ...(opts.headers||{}) }});
+  if(!r.ok){ let t=''; try{ t=(await r.text()).slice(0,160); }catch(e){} throw new Error(r.status+' '+t); }
+  return r.json();
+}
+function wrapDoc(rev){ return JSON.stringify({ _sync:{ rev, at:new Date().toISOString(), device:SYNC.device }, db:payload() }); }
+async function getRemoteDoc(){
+  const g=await ghFetch('/gists/'+SYNC.gistId);
+  const f=g.files&&g.files[SYNC_FILE]; if(!f) return null;
+  let content=f.content;
+  if(f.truncated){ content=await (await fetch(f.raw_url)).text(); } // gists >1MB come back truncated
+  try{ return JSON.parse(content); }catch(e){ return null; }
+}
+// Find this account's existing sync gist (so a new device only needs the token,
+// not the gist id) — matches the gist that holds our SYNC_FILE.
+async function findExistingGist(){
+  const list=await ghFetch('/gists?per_page=100');
+  const hit=Array.isArray(list)?list.find(g=>g.files && g.files[SYNC_FILE]):null;
+  return hit?hit.id:'';
+}
+async function pushCloud(force){
+  if(!SYNC.token) return;
+  setSyncStatus('saving…');
+  try{
+    if(!SYNC.gistId){ // no gist id on this device yet
+      const found=await findExistingGist();
+      if(found){ SYNC.gistId=found; saveSyncCfg(); return pullCloud(); } // adopt the shared gist
+      const g=await ghFetch('/gists',{method:'POST', body:JSON.stringify({ description:'Trackkin Content Forge — synced content', public:false, files:{ [SYNC_FILE]:{ content:wrapDoc(1) } } })});
+      SYNC.gistId=g.id; SYNC.rev=1; SYNC.lastAt=Date.now(); saveSyncCfg();
+      setSyncStatus('created & synced ✓'); renderTabs(); return;
+    }
+    const remote=await getRemoteDoc();
+    const rrev=(remote&&remote._sync&&remote._sync.rev)||0;
+    if(rrev>SYNC.rev && !force){ setSyncStatus('remote is newer (rev '+rrev+') — Pull first ↻', true); return; }
+    const newRev=Math.max(SYNC.rev, rrev)+1;
+    await ghFetch('/gists/'+SYNC.gistId,{method:'PATCH', body:JSON.stringify({ files:{ [SYNC_FILE]:{ content:wrapDoc(newRev) } } })});
+    SYNC.rev=newRev; SYNC.lastAt=Date.now(); saveSyncCfg();
+    setSyncStatus('synced ✓ '+relTime(SYNC.lastAt));
+  }catch(e){ setSyncStatus('push failed: '+e.message, true); }
+}
+async function pullCloud(){
+  if(!SYNC.token||!SYNC.gistId){ setSyncStatus('no gist yet — Save & sync to create'); return; }
+  setSyncStatus('pulling…');
+  try{
+    const remote=await getRemoteDoc();
+    if(!remote||!remote.db){ setSyncStatus('remote empty — pushing local'); return pushCloud(true); }
+    applyingRemote=true;
+    DB=normalizeDB(remote.db, !('recipes' in remote.db));
+    try{ localStorage.setItem(LS_KEY, JSON.stringify(DB)); }catch(e){}  // persist WITHOUT triggering a push echo
+    applyingRemote=false;
+    SYNC.rev=(remote._sync&&remote._sync.rev)||0; SYNC.lastAt=Date.now(); saveSyncCfg();
+    edit={materials:-1,items:-1,recipes:-1,stations:-1,actions:-1,profiles:-1,kins:-1,areas:-1};
+    draft={materials:null,items:null,recipes:null,stations:null,actions:null,profiles:null,kins:null,areas:null};
+    renderAll();
+    setSyncStatus('pulled ✓ rev '+SYNC.rev);
+  }catch(e){ applyingRemote=false; setSyncStatus('pull failed: '+e.message, true); }
+}
+function schedulePush(){ if(!SYNC.auto||!SYNC.token||applyingRemote) return;
+  clearTimeout(pushTimer); setSyncStatus('edited — saving soon…'); pushTimer=setTimeout(()=>pushCloud(false), 2500); }
+// On open: adopt the cloud copy only if another device advanced it past our rev;
+// otherwise flush any local (possibly offline) edits up. This avoids a stale
+// same-rev pull wiping edits made on this device while offline.
+async function syncOnOpen(){
+  setSyncStatus('checking…');
+  try{
+    const remote=await getRemoteDoc();
+    const rrev=(remote&&remote._sync&&remote._sync.rev)||0;
+    if(rrev>SYNC.rev){ await pullCloud(); }
+    else { await pushCloud(false); }
+  }catch(e){ setSyncStatus('sync check failed: '+e.message, true); }
+}
+function initCloud(){ loadSyncCfg();
+  if(SYNC.token && SYNC.gistId){ if(SYNC.auto) syncOnOpen(); else setSyncStatus('connected · rev '+SYNC.rev+' (manual)'); }
+  else if(SYNC.token){ setSyncStatus('connected — Save & sync to create gist'); }
+  else setSyncStatus('sync off'); }
+
+// ── boot ──────────────────────────────────────────────────────────────────────
+load(); renderAll(); initCloud();
+</script>
+</body>
+</html>
