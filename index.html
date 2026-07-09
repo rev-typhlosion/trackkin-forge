@@ -1229,7 +1229,15 @@ function paneRecipes(root){
 
   const outputS = resourceSelect(model?model.outputId:null);
   const outQtyI = el('input',{type:'number',min:'1',value:model?(model.outputQty||1):1,style:'max-width:80px'});
-  function effId(){ const n=(nameI.value||'').trim(); return slug(n||('recipe_'+(outputS.value||''))); }
+  // Recipes commonly share an output (alternate recipes for the same item), so a
+  // plain "recipe_<output>" id collides and the "already used" guard would block
+  // saving. For UNNAMED recipes we auto-uniquify the id — ignoring the recipe
+  // being edited so its own id stays stable — while a typed name is honoured
+  // verbatim so genuine name clashes still surface.
+  function recipeUid(base){ const m={}; ['materials','items','recipes','stations','actions','kins','regions','areas','rarityProfiles']
+      .forEach(k=>DB[k].forEach((e,i)=>{ if(!(k==='recipes'&&i===idx)) m[e.id]=1; }));
+    let id=base||'recipe', n=2; while(m[id]) id=(base||'recipe')+'_'+(n++); return id; }
+  function effId(){ const n=(nameI.value||'').trim(); return n? slug(n) : recipeUid('recipe_'+(outputS.value||'x')); }
   function syncId(){ const id=effId(); const taken=idTaken(id, idx); idLine.className='idline'+(taken?' bad':''); idLine.innerHTML = id?('id: <code>'+id+'</code>'+(taken?' — already used!':'')):'id: <code>—</code>'; }
   nameI.oninput=syncId; outputS.onchange=syncId;
 
