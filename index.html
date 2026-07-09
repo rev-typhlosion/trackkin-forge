@@ -30,6 +30,14 @@
   .wn-sub{font-size:10px; color:var(--muted);}
   .legend{display:flex; flex-wrap:wrap; gap:12px; margin:6px 0 10px;}
   .legend .dot{display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:5px; vertical-align:middle;}
+  .graphwrap{overflow:auto; max-height:74vh; border:1px solid var(--rule-soft); border-radius:12px; background:var(--surface); position:relative;}
+  .gnode{display:flex; gap:7px; align-items:center; box-sizing:border-box; background:var(--paper); border:1px solid var(--rule); border-radius:10px; padding:5px 8px; box-shadow:0 2px 6px rgba(0,0,0,.10); cursor:pointer; overflow:hidden; transition:opacity .12s, box-shadow .12s;}
+  .gnode .gn-ic{width:26px; height:26px; min-width:26px; border-radius:7px; display:flex; align-items:center; justify-content:center; font-size:15px; color:#fff; font-weight:800; overflow:hidden;}
+  .gnode .gn-tx{min-width:0; line-height:1.15;}
+  .gnode .gn-name{font-weight:700; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .gnode .gn-sub{font-size:10px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .gnode.dim{opacity:.18;}
+  .gnode.hot{box-shadow:0 0 0 2px var(--green);}
   body{margin:0; font-family:'Segoe UI',system-ui,sans-serif; color:var(--ink); background:var(--bg); line-height:1.4;}
   header{padding:16px 24px; border-bottom:1px solid var(--rule); background:var(--paper); display:flex; align-items:baseline; gap:14px; flex-wrap:wrap;}
   header h1{margin:0; font-size:25px; font-weight:700;}
@@ -465,6 +473,7 @@ const TABS = [
   {key:'items',     label:'Items'},
   {key:'recipes',   label:'Recipes'},
   {key:'stations',  label:'Stations'},
+  {key:'graph',     label:'Graph'},
   {key:'actions',   label:'Actions'},
   {key:'kins',      label:'Kins'},
   {key:'areas',     label:'Areas'},
@@ -491,7 +500,7 @@ function renderTabs(){
   });
 }
 function renderAll(){ paneRead=null; renderTabs(); const root=document.getElementById('root'); root.innerHTML='';
-  ({materials:paneMaterials, items:paneItems, recipes:paneRecipes, stations:paneStations, actions:paneActions, kins:paneKins, areas:paneAreas, world:paneWorld, profiles:paneProfiles, validate:paneValidate, export:paneExport}[activeTab])(root);
+  ({materials:paneMaterials, items:paneItems, recipes:paneRecipes, stations:paneStations, graph:paneGraph, actions:paneActions, kins:paneKins, areas:paneAreas, world:paneWorld, profiles:paneProfiles, validate:paneValidate, export:paneExport}[activeTab])(root);
 }
 
 /* ============================================================================
@@ -1221,6 +1230,149 @@ function recipeCard(r,i){
       el('button',{class:'danger sm',onclick:()=>{ if(confirm('Remove recipe '+recipeTitle(r)+'?')){ DB.recipes.splice(i,1); commit(); } }},'Remove'),
     ]),
   ])]);
+}
+
+/* ============================================================================
+   GRAPH  —  read-only dependency flowchart of the whole crafting web.
+   Nodes: resources (materials/items), recipes (the process), and — optionally —
+   actions (the raw source). Edges flow left→right: action → drop, input → recipe,
+   recipe → output. Layout is longest-path layering with a barycenter tidy pass
+   to cut edge crossings. Hand-rolled SVG so it stays single-file & offline.
+============================================================================ */
+const GRAPH_COL={ material:'#b07d1a', item:'#2f73b0', recipe:'#305f4d', action:'#c2185b' };
+const GRAPH_GLYPH={ recipe:'⚙', action:'▶' };
+let graphOpts={ actions:true, qty:false };
+
+function resIndex(id){ let i=DB.materials.findIndex(x=>x.id===id); if(i>=0) return {kind:'materials',idx:i};
+  i=DB.items.findIndex(x=>x.id===id); if(i>=0) return {kind:'items',idx:i}; return null; }
+
+// Assemble {nodes: Map id→node, edges:[{s,t,label}]} from recipes (+actions).
+function buildGraph(){
+  const nodes=new Map(), edges=[];
+  function addRes(id){ const key='res:'+id; if(nodes.has(key)) return key;
+    const ref=resIndex(id); const r=ref?DB[ref.kind][ref.idx]:null;
+    nodes.set(key,{ id:key, type: ref&&ref.kind==='items'?'item':'material',
+      label:r?r.name:id, icon:r?r.icon:null, ref, missing:!ref }); return key; }
+  DB.recipes.forEach((r,i)=>{
+    const rn='rec:'+r.id;
+    if(!nodes.has(rn)){
+      const where=(r.stations&&r.stations.length)?r.stations.map(stationName).join(', '):'anywhere';
+      const sk=r.skillId?((SKILLS.find(x=>x.id===r.skillId)||{}).name||r.skillId):'';
+      nodes.set(rn,{ id:rn, type:'recipe', label:recipeTitle(r),
+        sub:(sk?sk+' · ':'')+'@ '+where, ref:{kind:'recipes',idx:i} });
+    }
+    Object.entries(r.inputs||{}).forEach(([k,v])=>{ edges.push({s:addRes(k), t:rn, label:graphOpts.qty?('×'+v):''}); });
+    if(r.outputId) edges.push({s:rn, t:addRes(r.outputId), label:(r.outputQty>1?('×'+r.outputQty):'')});
+  });
+  if(graphOpts.actions) DB.actions.forEach((a,i)=>{
+    const drops=(a.drops||[]).filter(d=>d.resource);
+    if(!drops.length) return;
+    const an='act:'+a.id;
+    const sk=a.skillId?((SKILLS.find(x=>x.id===a.skillId)||{}).name||a.skillId):'action';
+    nodes.set(an,{ id:an, type:'action', label:a.name, sub:sk, ref:{kind:'actions',idx:i} });
+    drops.forEach(d=>edges.push({s:an, t:addRes(d.resource), label:''}));
+  });
+  return {nodes, edges};
+}
+
+// Longest-path layering + barycenter ordering. Returns columns[] of node ids.
+function layoutGraph(g){
+  const layer=new Map(), incoming=new Map();
+  g.nodes.forEach((_,id)=>{ layer.set(id,0); incoming.set(id,[]); });
+  g.edges.forEach(e=>{ if(g.nodes.has(e.s)&&g.nodes.has(e.t)) incoming.get(e.t).push(e.s); });
+  let guard=g.nodes.size+2, changed=true;
+  while(changed && guard-->0){ changed=false;
+    g.edges.forEach(e=>{ if(!g.nodes.has(e.s)||!g.nodes.has(e.t)) return;
+      if(layer.get(e.t) < layer.get(e.s)+1){ layer.set(e.t, layer.get(e.s)+1); changed=true; } }); }
+  const cols=[]; layer.forEach((L,id)=>{ (cols[L]||(cols[L]=[])).push(id); });
+  for(let L=0;L<cols.length;L++) if(!cols[L]) cols[L]=[];
+  cols[0].sort((a,b)=>g.nodes.get(a).label.localeCompare(g.nodes.get(b).label));
+  const posInCol=new Map(); cols.forEach(c=>c.forEach((id,i)=>posInCol.set(id,i)));
+  const bary=id=>{ const p=incoming.get(id)||[]; return p.length? p.reduce((s,x)=>s+(posInCol.get(x)||0),0)/p.length : (posInCol.get(id)||0); };
+  for(let pass=0;pass<4;pass++) for(let L=1;L<cols.length;L++){
+    cols[L].sort((a,b)=>bary(a)-bary(b)); cols[L].forEach((id,i)=>posInCol.set(id,i)); }
+  return cols;
+}
+
+function paneGraph(root){
+  const g=buildGraph();
+  const toggle=(label,val,on)=>{ const c=el('input',{type:'checkbox'}); c.checked=val; c.onchange=()=>{ on(c.checked); renderAll(); };
+    return el('label',{style:'display:flex;gap:6px;align-items:center;cursor:pointer;margin:0'},[c, el('span',{},label)]); };
+  const dot=(k,txt)=>el('span',{},[ el('span',{class:'dot',style:'background:'+GRAPH_COL[k]}), txt ]);
+  root.append(el('div',{class:'card'},[
+    el('h2',{},['Graph ', el('span',{class:'help'},'(read-only crafting map)')]),
+    el('p',{class:'help'},'How everything connects: raw sources → recipes → outputs. Hover a node to trace its links; click one to open it in its editor.'),
+    el('div',{class:'bar',style:'align-items:center'},[
+      toggle('Include actions (raw sources)', graphOpts.actions, v=>graphOpts.actions=v),
+      toggle('Show input quantities', graphOpts.qty, v=>graphOpts.qty=v),
+      el('span',{class:'legend',style:'margin:0 0 0 auto'},[ dot('material','material'), dot('item','item'), dot('recipe','recipe'), dot('action','action') ]),
+    ]),
+  ]));
+  if(!g.nodes.size){ root.append(el('div',{class:'card'}, el('div',{class:'empty'},
+    'Nothing to map yet — add recipes (or actions with drops) and their connections will appear here.'))); return; }
+
+  const cols=layoutGraph(g);
+  const NW=142, NH=48, HGAP=64, VGAP=16, PAD=22, NS='http://www.w3.org/2000/svg';
+  const rows=Math.max(1,...cols.map(c=>c.length));
+  const W=PAD*2 + cols.length*NW + (cols.length-1)*HGAP;
+  const H=PAD*2 + rows*NH + (rows-1)*VGAP;
+  const pos=new Map();
+  cols.forEach((c,L)=>{ const colH=c.length*NH+(c.length-1)*VGAP; let y=PAD+(H-PAD*2-colH)/2;
+    const x=PAD+L*(NW+HGAP); c.forEach(id=>{ pos.set(id,{x,y}); y+=NH+VGAP; }); });
+
+  const stage=el('div',{style:`position:relative;width:${W}px;height:${H}px;`});
+  const svg=document.createElementNS(NS,'svg'); svg.setAttribute('width',W); svg.setAttribute('height',H);
+  svg.setAttribute('style','position:absolute;left:0;top:0;pointer-events:none;');
+  svg.innerHTML='<defs><marker id="garrow" markerWidth="9" markerHeight="9" refX="7.5" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#9c8f77"/></marker></defs>';
+  stage.append(svg);
+
+  const EDGE='#c3b49a', HOT='#305f4d';
+  const edgeEls=[];
+  g.edges.forEach(e=>{ const a=pos.get(e.s), b=pos.get(e.t); if(!a||!b) return;
+    const sx=a.x+NW, sy=a.y+NH/2, tx=b.x, ty=b.y+NH/2, mx=(sx+tx)/2;
+    const path=document.createElementNS(NS,'path');
+    path.setAttribute('d',`M${sx},${sy} C${mx},${sy} ${mx},${ty} ${tx},${ty}`);
+    path.setAttribute('fill','none'); path.setAttribute('stroke',EDGE); path.setAttribute('stroke-width','1.6');
+    path.setAttribute('opacity','.85'); path.setAttribute('marker-end','url(#garrow)');
+    svg.append(path);
+    if(e.label){ const t=document.createElementNS(NS,'text'); t.setAttribute('x',mx); t.setAttribute('y',(sy+ty)/2-3);
+      t.setAttribute('fill','#7a6f5c'); t.setAttribute('font-size','10'); t.setAttribute('text-anchor','middle'); t.textContent=e.label; svg.append(t); }
+    edgeEls.push({s:e.s, t:e.t, el:path});
+  });
+
+  const nodeEls=new Map();
+  g.nodes.forEach((n,id)=>{ const p=pos.get(id); if(!p) return;
+    const col=GRAPH_COL[n.type]||'#888';
+    const ic=el('div',{class:'gn-ic'});
+    if(n.type==='material'||n.type==='item') renderIconInto(ic, n.icon, n.label);
+    else { ic.style.background=col; ic.textContent=GRAPH_GLYPH[n.type]||'•'; }
+    const node=el('div',{class:'gnode',title:(n.missing?'⚠ missing resource — ':'')+n.label,
+      style:`position:absolute;left:${p.x}px;top:${p.y}px;width:${NW}px;height:${NH}px;border-left:5px solid ${col};`
+        +(n.missing?'border-color:var(--danger);':'')},[
+      ic,
+      el('div',{class:'gn-tx'},[ el('div',{class:'gn-name'}, n.label),
+        el('div',{class:'gn-sub'}, n.sub || (n.missing?'⚠ not defined':n.type)) ]),
+    ]);
+    node.onmouseenter=()=>focus(id); node.onmouseleave=unfocus;
+    if(n.ref) node.onclick=()=>{ draft[n.ref.kind]=null; edit[n.ref.kind]=n.ref.idx; activeTab=n.ref.kind; renderAll(); window.scrollTo({top:0,behavior:'smooth'}); };
+    else node.style.cursor='default';
+    nodeEls.set(id,node); stage.append(node);
+  });
+
+  function focus(id){ const nb=new Set([id]);
+    edgeEls.forEach(({s,t})=>{ if(s===id) nb.add(t); if(t===id) nb.add(s); });
+    nodeEls.forEach((elm,nid)=>{ elm.classList.toggle('dim', !nb.has(nid)); elm.classList.toggle('hot', nid===id); });
+    edgeEls.forEach(({s,t,el})=>{ const on=(s===id||t===id);
+      el.setAttribute('stroke', on?HOT:EDGE); el.setAttribute('stroke-width', on?'2.4':'1.6'); el.setAttribute('opacity', on?'1':'.15'); }); }
+  function unfocus(){ nodeEls.forEach(elm=>elm.classList.remove('dim','hot'));
+    edgeEls.forEach(({el})=>{ el.setAttribute('stroke',EDGE); el.setAttribute('stroke-width','1.6'); el.setAttribute('opacity','.85'); }); }
+
+  const counts=[...g.nodes.values()].reduce((m,n)=>{ m[n.type]=(m[n.type]||0)+1; return m; },{});
+  root.append(el('div',{class:'card'},[
+    el('div',{class:'help',style:'margin-bottom:8px'},
+      (counts.action||0)+' actions · '+(counts.material||0)+' materials · '+(counts.recipe||0)+' recipes · '+(counts.item||0)+' items · '+g.edges.length+' links'),
+    el('div',{class:'graphwrap'}, stage),
+  ]));
 }
 
 /* ============================================================================
