@@ -81,6 +81,18 @@
   .listitem .name{font-weight:800; font-size:15px;}
   .listitem .meta{font-size:12px; color:var(--muted); margin:2px 0 6px;}
   .listitem .acts{display:flex; gap:6px; margin-top:6px;}
+  .listrow{display:flex; align-items:center; gap:10px; padding:6px 10px; border:1px solid var(--rule-soft); border-left:4px solid var(--green); border-radius:8px; margin-bottom:5px; background:var(--surface); cursor:pointer;}
+  .listrow:hover{background:var(--paper); box-shadow:0 1px 4px rgba(0,0,0,.08);}
+  .listrow.bad{border-left-color:var(--danger);}
+  .listrow .row-ic{width:28px; height:28px; min-width:28px; border-radius:7px; display:flex; align-items:center; justify-content:center; font-size:15px; color:#fff; font-weight:800; overflow:hidden;}
+  .listrow .row-name{font-weight:700; font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:0 1 auto;}
+  .listrow .row-meta{font-size:11.5px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1 1 auto;}
+  .listrow .row-acts{display:flex; gap:4px; margin-left:auto; flex:0 0 auto;}
+  .listrow .row-acts button{padding:3px 7px; font-size:12px;}
+  .listhead{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px;}
+  .listhead h2{margin:0;}
+  .listhead .tools{margin-left:auto; display:flex; gap:8px; align-items:center;}
+  .listhead input[type=search]{max-width:220px; padding:6px 9px;}
   .pill{display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; background:var(--green-soft); color:var(--green); margin:0 4px 4px 0;}
   .empty{color:var(--muted); font-style:italic; padding:8px 0;}
   details{margin-top:8px;} summary{cursor:pointer; font-weight:700; color:var(--green); font-size:13px;}
@@ -504,6 +516,68 @@ function renderAll(){ paneRead=null; renderTabs(); const root=document.getElemen
 }
 
 /* ============================================================================
+   LIST INFRA  —  compact one-line rows (default) with a Detailed toggle + a
+   live name filter, so the making tabs stay scannable instead of a wall of
+   full cards. rowFn = compact renderer, detailFn = the original full card.
+============================================================================ */
+let listDense = true; // compact rows by default; toggle flips to detailed cards
+function openEntry(kind, i){ draft[kind]=null; edit[kind]=i; activeTab=kind; renderAll(); window.scrollTo({top:0,behavior:'smooth'}); }
+function removeEntry(kind, i, name){ if(confirm('Remove '+name+'?')){ DB[kind].splice(i,1); commit(); } }
+// One compact row: click anywhere = edit; Duplicate / Remove don't bubble.
+function listRow({icon, glyph, name, meta, bad, kind, i}){
+  const ic=el('div',{class:'row-ic'});
+  if(glyph!==undefined){ ic.style.background='#5a6b57'; ic.textContent=glyph; }
+  else renderIconInto(ic, icon, name);
+  const row=el('div',{class:'listrow'+(bad?' bad':''), title:'Click to edit'},[
+    ic, el('div',{class:'row-name'}, name), el('div',{class:'row-meta'}, meta),
+    el('div',{class:'row-acts'},[
+      el('button',{class:'ghost sm',title:'Duplicate',onclick:(e)=>{e.stopPropagation(); dupEntry(kind,i);}},'⧉'),
+      el('button',{class:'danger sm',title:'Remove',onclick:(e)=>{e.stopPropagation(); removeEntry(kind,i,name);}},'✕'),
+    ]),
+  ]);
+  row.onclick=()=>openEntry(kind,i);
+  return row;
+}
+// Card wrapper with header (title+count), density toggle, and a live filter box.
+// The toggle & filter redraw only the rows (keeps the search box focused).
+function entityList(kind, title, arr, rowFn, detailFn){
+  const rowsWrap=el('div',{});
+  const searchI=el('input',{type:'search',placeholder:'Filter by name…'});
+  function applySearch(){ const q=searchI.value.trim().toLowerCase();
+    rowsWrap.querySelectorAll('[data-q]').forEach(elm=>{ elm.style.display=(!q||elm.getAttribute('data-q').includes(q))?'':'none'; }); }
+  function draw(){ rowsWrap.innerHTML='';
+    if(!arr.length){ rowsWrap.append(el('div',{class:'empty'},'Nothing yet.')); return; }
+    arr.forEach((x,i)=>{ const r=(listDense?rowFn:detailFn)(x,i);
+      r.setAttribute('data-q', ((x.name||'')+' '+(x.id||'')).toLowerCase()); rowsWrap.append(r); });
+    applySearch(); }
+  searchI.oninput=applySearch;
+  const toggle=el('button',{class:'ghost sm'}); toggle.textContent=listDense?'▦ Detailed':'☰ Compact';
+  toggle.onclick=()=>{ listDense=!listDense; toggle.textContent=listDense?'▦ Detailed':'☰ Compact'; draw(); };
+  draw();
+  return el('div',{class:'card'},[
+    el('div',{class:'listhead'},[ el('h2',{},[title+' ', el('span',{class:'help'},'('+arr.length+')')]),
+      el('div',{class:'tools'},[ searchI, toggle ]) ]),
+    rowsWrap,
+  ]);
+}
+function densityButton(){ const b=el('button',{class:'ghost sm'}); b.textContent=listDense?'▦ Detailed':'☰ Compact';
+  b.onclick=()=>{ listDense=!listDense; renderAll(); }; return b; }
+// Compact row renderers (mirror the *Card detail views).
+function itemRow(it,i){ const n=recipesForOutput(it.id).length;
+  return listRow({ icon:it.icon, name:it.name, kind:'items', i,
+    meta:(SLOT_LABELS[it.slot]||it.slot)+' · T'+(it.tier||1)+' · Lv'+it.levelRequirement+' · '+(n||'no')+' recipe'+(n===1?'':'s') }); }
+function materialRow(m,i){ const n=recipesForOutput(m.id).length;
+  return listRow({ icon:m.icon, name:m.name, kind:'materials', i,
+    meta:(m.category||'uncat.')+' · T'+(m.tier||1)+' · '+(n?'crafted':'raw')+(m.value?(' · buy '+m.value):'')+(m.sell?(' · sell '+m.sell):'') }); }
+function recipeRow(r,i){ const where=(r.stations&&r.stations.length)?r.stations.map(stationName).join(', '):'anywhere';
+  const sk=r.skillId?((SKILLS.find(x=>x.id===r.skillId)||{}).name||r.skillId):'no skill';
+  return listRow({ glyph:'⚙', name:recipeTitle(r)+(r.outputQty>1?(' ×'+r.outputQty):''), kind:'recipes', i,
+    meta:'→ '+(r.outputId?matName(r.outputId):'—')+' · '+sk+' · @ '+where }); }
+function stationRow(s,i){ const nRec=DB.recipes.filter(r=>(r.stations||[]).includes(s.id)).length;
+  return listRow({ icon:s.icon, name:s.name, kind:'stations', i,
+    meta:(s.skillId?(SKILLS.find(x=>x.id===s.skillId)||{}).name:'any skill')+' · T'+(s.tier||1)+' · '+nRec+' recipe(s)' }); }
+
+/* ============================================================================
    MATERIALS
 ============================================================================ */
 function paneMaterials(root){
@@ -590,16 +664,17 @@ function paneMaterials(root){
       const es = entriesFor(c);
       if (!es.length) return;
       body.append(el('div', {class: 'group-head'}, c + ' (' + es.length + ')'));
-      es.forEach(x => body.append(materialCard(x.m, x.i)));
+      es.forEach(x => body.append(listDense ? materialRow(x.m, x.i) : materialCard(x.m, x.i)));
     });
   } else {
-    entriesFor(matFilter).forEach(x => body.append(materialCard(x.m, x.i)));
+    entriesFor(matFilter).forEach(x => body.append(listDense ? materialRow(x.m, x.i) : materialCard(x.m, x.i)));
   }
 
   const list = el('div', {class: 'col'}, [
     materialCoverageCard(),
     el('div', {class: 'card'}, [
-      el('h2', {}, ['Materials ', el('span', {class: 'help'}, '(' + DB.materials.length + ')')]),
+      el('div', {class:'listhead'}, [ el('h2', {}, ['Materials ', el('span', {class: 'help'}, '(' + DB.materials.length + ')')]),
+        el('div',{class:'tools'},[ densityButton() ]) ]),
       DB.materials.length ? chips : null,
       DB.materials.length ? body : el('div', {class: 'empty'}, 'No materials yet.'),
     ]),
@@ -1031,10 +1106,7 @@ function paneItems(root){
     ]),
   ]);
 
-  const list=el('div',{class:'col'},[ toolCoverageCard(), el('div',{class:'card'},[
-    el('h2',{},['Items ', el('span',{class:'help'},'('+DB.items.length+')')]),
-    DB.items.length? el('div',{}, DB.items.map((it,i)=>itemCard(it,i))) : el('div',{class:'empty'},'No items yet.'),
-  ])]);
+  const list=el('div',{class:'col'},[ toolCoverageCard(), entityList('items','Items',DB.items,itemRow,itemCard) ]);
 
   root.append(form, list); paneRead=collect; syncId(); syncOdds(); refreshDerive(); syncBudget();
 }
@@ -1108,10 +1180,7 @@ function paneStations(root){
       ]),
     ]),
   ]);
-  const list = el('div',{class:'col'},[ el('div',{class:'card'},[
-    el('h2',{},['Stations ', el('span',{class:'help'},'('+DB.stations.length+')')]),
-    DB.stations.length? el('div',{}, DB.stations.map((s,i)=>stationCard(s,i))) : el('div',{class:'empty'},'No stations yet.'),
-  ])]);
+  const list = el('div',{class:'col'},[ entityList('stations','Stations',DB.stations,stationRow,stationCard) ]);
   root.append(form, list); paneRead=collect; syncId();
 }
 function stationCard(s,i){
@@ -1209,10 +1278,7 @@ function paneRecipes(root){
       el('button',{class:'ghost',onclick:()=>{draft.recipes=null; edit.recipes=-1; renderAll();}},'Clear form'),
     ]),
   ]);
-  const list = el('div',{class:'col'},[ el('div',{class:'card'},[
-    el('h2',{},['Recipes ', el('span',{class:'help'},'('+DB.recipes.length+')')]),
-    DB.recipes.length? el('div',{}, DB.recipes.map((r,i)=>recipeCard(r,i))) : el('div',{class:'empty'},'No recipes yet.'),
-  ])]);
+  const list = el('div',{class:'col'},[ entityList('recipes','Recipes',DB.recipes,recipeRow,recipeCard) ]);
   root.append(form, list); paneRead=collect; syncId();
 }
 function recipeCard(r,i){
@@ -1241,7 +1307,8 @@ function recipeCard(r,i){
 ============================================================================ */
 const GRAPH_COL={ material:'#b07d1a', item:'#2f73b0', recipe:'#305f4d', action:'#c2185b' };
 const GRAPH_GLYPH={ recipe:'⚙', action:'▶' };
-let graphOpts={ actions:true, qty:false };
+let graphOpts={ show:{material:true, item:true, recipe:true, action:true}, qty:false };
+let graphSearch='';
 
 function resIndex(id){ let i=DB.materials.findIndex(x=>x.id===id); if(i>=0) return {kind:'materials',idx:i};
   i=DB.items.findIndex(x=>x.id===id); if(i>=0) return {kind:'items',idx:i}; return null; }
@@ -1264,7 +1331,7 @@ function buildGraph(){
     Object.entries(r.inputs||{}).forEach(([k,v])=>{ edges.push({s:addRes(k), t:rn, label:graphOpts.qty?('×'+v):''}); });
     if(r.outputId) edges.push({s:rn, t:addRes(r.outputId), label:(r.outputQty>1?('×'+r.outputQty):'')});
   });
-  if(graphOpts.actions) DB.actions.forEach((a,i)=>{
+  DB.actions.forEach((a,i)=>{
     const drops=(a.drops||[]).filter(d=>d.resource);
     if(!drops.length) return;
     const an='act:'+a.id;
@@ -1274,6 +1341,11 @@ function buildGraph(){
   });
   return {nodes, edges};
 }
+// Keep only the node types the author has enabled; drop edges that lose an end.
+function filterGraph(g){ const nodes=new Map(), edges=[];
+  g.nodes.forEach((n,id)=>{ if(graphOpts.show[n.type]!==false) nodes.set(id,n); });
+  g.edges.forEach(e=>{ if(nodes.has(e.s)&&nodes.has(e.t)) edges.push(e); });
+  return {nodes, edges}; }
 
 // Longest-path layering + barycenter ordering. Returns columns[] of node ids.
 function layoutGraph(g){
@@ -1296,22 +1368,29 @@ function layoutGraph(g){
 
 function paneGraph(root){
   const g=buildGraph();
-  const toggle=(label,val,on)=>{ const c=el('input',{type:'checkbox'}); c.checked=val; c.onchange=()=>{ on(c.checked); renderAll(); };
-    return el('label',{style:'display:flex;gap:6px;align-items:center;cursor:pointer;margin:0'},[c, el('span',{},label)]); };
-  const dot=(k,txt)=>el('span',{},[ el('span',{class:'dot',style:'background:'+GRAPH_COL[k]}), txt ]);
+  const typeToggle=(k,label)=>{ const c=el('input',{type:'checkbox'}); c.checked=graphOpts.show[k]!==false;
+    c.onchange=()=>{ graphOpts.show[k]=c.checked; renderAll(); };
+    return el('label',{style:'display:flex;gap:5px;align-items:center;cursor:pointer;margin:0'},
+      [c, el('span',{class:'dot',style:'background:'+GRAPH_COL[k]}), el('span',{},label)]); };
+  const qtyToggle=(()=>{ const c=el('input',{type:'checkbox'}); c.checked=graphOpts.qty;
+    c.onchange=()=>{ graphOpts.qty=c.checked; renderAll(); };
+    return el('label',{style:'display:flex;gap:5px;align-items:center;cursor:pointer;margin:0'},[c, el('span',{},'input qty')]); })();
+  const searchI=el('input',{type:'search',placeholder:'Search nodes…',value:graphSearch,style:'margin-left:auto;max-width:190px'});
   root.append(el('div',{class:'card'},[
     el('h2',{},['Graph ', el('span',{class:'help'},'(read-only crafting map)')]),
-    el('p',{class:'help'},'How everything connects: raw sources → recipes → outputs. Hover a node to trace its links; click one to open it in its editor.'),
+    el('p',{class:'help'},'How everything connects: raw sources → recipes → outputs. Hover a node to trace its links; click one to open its editor. Toggle types or search to cut the clutter.'),
     el('div',{class:'bar',style:'align-items:center'},[
-      toggle('Include actions (raw sources)', graphOpts.actions, v=>graphOpts.actions=v),
-      toggle('Show input quantities', graphOpts.qty, v=>graphOpts.qty=v),
-      el('span',{class:'legend',style:'margin:0 0 0 auto'},[ dot('material','material'), dot('item','item'), dot('recipe','recipe'), dot('action','action') ]),
+      el('span',{class:'help'},'Show:'), typeToggle('material','materials'), typeToggle('item','items'),
+      typeToggle('recipe','recipes'), typeToggle('action','actions'),
+      el('span',{style:'width:10px;display:inline-block'}), qtyToggle, searchI,
     ]),
   ]));
-  if(!g.nodes.size){ root.append(el('div',{class:'card'}, el('div',{class:'empty'},
-    'Nothing to map yet — add recipes (or actions with drops) and their connections will appear here.'))); return; }
+  const g2=filterGraph(g);
+  if(!g2.nodes.size){ root.append(el('div',{class:'card'}, el('div',{class:'empty'},
+    g.nodes.size ? 'Everything is hidden — enable a node type above.'
+                 : 'Nothing to map yet — add recipes (or actions with drops) and their connections will appear here.'))); return; }
 
-  const cols=layoutGraph(g);
+  const cols=layoutGraph(g2);
   const NW=142, NH=48, HGAP=64, VGAP=16, PAD=22, NS='http://www.w3.org/2000/svg';
   const rows=Math.max(1,...cols.map(c=>c.length));
   const W=PAD*2 + cols.length*NW + (cols.length-1)*HGAP;
@@ -1328,7 +1407,7 @@ function paneGraph(root){
 
   const EDGE='#c3b49a', HOT='#305f4d';
   const edgeEls=[];
-  g.edges.forEach(e=>{ const a=pos.get(e.s), b=pos.get(e.t); if(!a||!b) return;
+  g2.edges.forEach(e=>{ const a=pos.get(e.s), b=pos.get(e.t); if(!a||!b) return;
     const sx=a.x+NW, sy=a.y+NH/2, tx=b.x, ty=b.y+NH/2, mx=(sx+tx)/2;
     const path=document.createElementNS(NS,'path');
     path.setAttribute('d',`M${sx},${sy} C${mx},${sy} ${mx},${ty} ${tx},${ty}`);
@@ -1341,7 +1420,7 @@ function paneGraph(root){
   });
 
   const nodeEls=new Map();
-  g.nodes.forEach((n,id)=>{ const p=pos.get(id); if(!p) return;
+  g2.nodes.forEach((n,id)=>{ const p=pos.get(id); if(!p) return;
     const col=GRAPH_COL[n.type]||'#888';
     const ic=el('div',{class:'gn-ic'});
     if(n.type==='material'||n.type==='item') renderIconInto(ic, n.icon, n.label);
@@ -1364,13 +1443,21 @@ function paneGraph(root){
     nodeEls.forEach((elm,nid)=>{ elm.classList.toggle('dim', !nb.has(nid)); elm.classList.toggle('hot', nid===id); });
     edgeEls.forEach(({s,t,el})=>{ const on=(s===id||t===id);
       el.setAttribute('stroke', on?HOT:EDGE); el.setAttribute('stroke-width', on?'2.4':'1.6'); el.setAttribute('opacity', on?'1':'.15'); }); }
-  function unfocus(){ nodeEls.forEach(elm=>elm.classList.remove('dim','hot'));
+  function resetHi(){ nodeEls.forEach(elm=>elm.classList.remove('dim','hot'));
     edgeEls.forEach(({el})=>{ el.setAttribute('stroke',EDGE); el.setAttribute('stroke-width','1.6'); el.setAttribute('opacity','.85'); }); }
+  function applySearch(){ const q=graphSearch.trim().toLowerCase(); if(!q){ resetHi(); return; }
+    const match=new Set(); g2.nodes.forEach((n,id)=>{ if((n.label||'').toLowerCase().includes(q)) match.add(id); });
+    nodeEls.forEach((elm,id)=>{ elm.classList.toggle('dim', !match.has(id)); elm.classList.toggle('hot', match.has(id)); });
+    edgeEls.forEach(({s,t,el})=>{ el.setAttribute('opacity', (match.has(s)||match.has(t))?'.9':'.08'); }); }
+  // hover trumps search transiently; restore the search highlight on mouse-out.
+  function unfocus(){ resetHi(); if(graphSearch.trim()) applySearch(); }
+  searchI.oninput=()=>{ graphSearch=searchI.value; applySearch(); };
+  applySearch();
 
-  const counts=[...g.nodes.values()].reduce((m,n)=>{ m[n.type]=(m[n.type]||0)+1; return m; },{});
+  const counts=[...g2.nodes.values()].reduce((m,n)=>{ m[n.type]=(m[n.type]||0)+1; return m; },{});
   root.append(el('div',{class:'card'},[
     el('div',{class:'help',style:'margin-bottom:8px'},
-      (counts.action||0)+' actions · '+(counts.material||0)+' materials · '+(counts.recipe||0)+' recipes · '+(counts.item||0)+' items · '+g.edges.length+' links'),
+      (counts.action||0)+' actions · '+(counts.material||0)+' materials · '+(counts.recipe||0)+' recipes · '+(counts.item||0)+' items · '+g2.edges.length+' links'),
     el('div',{class:'graphwrap'}, stage),
   ]));
 }
