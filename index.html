@@ -1136,6 +1136,51 @@ function toolCoverageCard(){
   const toolSlots=(SLOT_GROUPS.find(g=>g.label==='Tools')||{slots:[]}).slots;
   return slotCoverageCard(toolSlots, 'Tool coverage', '(tool per profession × tier — red = still to make)');
 }
+// Column sort key for a recipe-coverage output: equipment/tool by slot order,
+// materials afterwards — so a skill's grid reads in a sensible column order.
+function recipeColSort(ref,out){
+  if(ref.kind==='items'){ const order=SLOT_GROUPS.flatMap(g=>g.slots); const i=order.indexOf(out.slot); return i<0?500:i; }
+  return 1000;
+}
+// Recipe coverage: one grid PER crafting skill — tier (rows) × output piece
+// (cols). ● = a recipe exists, red — = still to author. Each output's column is
+// its name minus the leading material word ("Bronze Sword" → "Sword"). Gathered
+// resources (ores/gems) have no recipes, so they never show up as columns.
+function recipeCoverageCards(){
+  const bySkill={};
+  DB.recipes.forEach(r=>{
+    const ref=resIndex(r.outputId); if(!ref) return;            // skip dangling
+    const out=DB[ref.kind][ref.idx];
+    const tier=out.tier||1;
+    const parts=(out.name||'').trim().split(/\s+/);
+    const baseKind=parts.length>1?parts.slice(1).join(' '):(out.name||r.outputId);
+    const sk=r.skillId||'';
+    const g=(bySkill[sk]=bySkill[sk]||{cols:{},tiers:new Set()});
+    g.tiers.add(tier);
+    const col=(g.cols[baseKind]=g.cols[baseKind]||{label:baseKind, sort:recipeColSort(ref,out), cells:{}});
+    (col.cells[tier]=col.cells[tier]||[]).push(r.name||recipeTitle(r));
+  });
+  const skillIds=Object.keys(bySkill);
+  if(!skillIds.length) return el('div',{class:'card'},[ el('h2',{},'Recipe coverage'), el('p',{class:'help'},'No recipes yet.') ]);
+  skillIds.sort((a,b)=>{ const ia=SKILLS.findIndex(s=>s.id===a), ib=SKILLS.findIndex(s=>s.id===b); return (ia<0?99:ia)-(ib<0?99:ib); });
+  const cards=skillIds.map(sk=>{
+    const g=bySkill[sk];
+    const cols=Object.values(g.cols).sort((a,b)=> (a.sort-b.sort) || a.label.localeCompare(b.label));
+    const tiers=[...g.tiers]; const minT=Math.min(...tiers), maxT=Math.max(...tiers);
+    const head=[el('th',{},'Tier')]; cols.forEach(c=>head.push(el('th',{},c.label)));
+    const rows=[el('tr',{},head)];
+    for(let t=minT;t<=maxT;t++){ const cells=[el('td',{class:'cat'},'T'+t)];
+      cols.forEach(c=>{ const names=c.cells[t]||[]; const ok=names.length>0;
+        cells.push(el('td',{class:ok?'cov-ok':'cov-gap', title:ok?names.join(', '):'no recipe'}, ok?(names.length>1?('● '+names.length):'●'):'—')); });
+      rows.push(el('tr',{},cells)); }
+    const skName=(SKILLS.find(s=>s.id===sk)||{}).name || (sk||'(no skill)');
+    return el('div',{class:'card'},[
+      el('h2',{},[skName+' recipes ', el('span',{class:'help'},'(tier × output — red = no recipe yet)')]),
+      el('table',{class:'cov-table'}, rows),
+    ]);
+  });
+  return el('div',{class:'col'}, cards);
+}
 function itemCard(it,i){
   const chip=el('div',{class:'icon-chip',style:'cursor:default'}); renderIconInto(chip,it.icon,it.name);
   const thumb = it.image ? el('img',{class:'img-thumb', src:it.image, title:'Has 150×150 artwork'}) : null;
@@ -1295,7 +1340,7 @@ function paneRecipes(root){
       el('button',{class:'ghost',onclick:()=>{draft.recipes=null; edit.recipes=-1; renderAll();}},'Clear form'),
     ]),
   ]);
-  const list = el('div',{class:'col'},[ entityList('recipes','Recipes',DB.recipes,recipeRow,recipeCard) ]);
+  const list = el('div',{class:'col'},[ recipeCoverageCards(), entityList('recipes','Recipes',DB.recipes,recipeRow,recipeCard) ]);
   root.append(form, list); paneRead=collect; syncId();
 }
 function recipeCard(r,i){
