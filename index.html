@@ -147,7 +147,7 @@ const SLOTS   = ['head','body','legs','boots','gloves','mainHand','offHand','nec
 const SLOT_LABELS = {
   head:'Head',body:'Body',legs:'Legs',boots:'Boots',gloves:'Gloves',mainHand:'Main Hand',offHand:'Off-Hand',
   necklace:'Necklace',ring1:'Ring 1',ring2:'Ring 2',cape:'Cape',banner:'Banner',
-  axe:'Axe (Woodcutting)',pickaxe:'Pickaxe (Mining)',fishingRod:'Fishing Rod (Fishing)',bow:'Bow (Hunting)',
+  axe:'Hatchet (Woodcutting)',pickaxe:'Pickaxe (Mining)',fishingRod:'Fishing Rod (Fishing)',bow:'Bow (Hunting)',
   sickle:'Sickle (Gathering)',chisel:'Chisel (Carving)',hammer:'Hammer (Smithing)',tongs:'Tongs (Smelting)',
   ladle:'Ladle (Cooking)',tinderbox:'Tinderbox (Firemaking)',wand:'Wand (Enchanting)',
 };
@@ -1106,26 +1106,35 @@ function paneItems(root){
     ]),
   ]);
 
-  const list=el('div',{class:'col'},[ toolCoverageCard(), entityList('items','Items',DB.items,itemRow,itemCard) ]);
+  const list=el('div',{class:'col'},[ gearCoverageCard(), toolCoverageCard(), entityList('items','Items',DB.items,itemRow,itemCard) ]);
 
   root.append(form, list); paneRead=collect; syncId(); syncOdds(); refreshDerive(); syncBudget();
 }
-// Tool coverage: one tool per profession (tool slot) × tier — spot the gaps.
-function toolCoverageCard(){
-  const toolSlots=(SLOT_GROUPS.find(g=>g.label==='Tools')||{slots:[]}).slots;
+// Coverage grid: given a set of slots, show slot × tier (● filled / red — gap).
+function slotCoverageCard(slots, title, help){
   const maxTier=Math.max(1, ...DB.items.map(it=>it.tier||1));
   const grid={};
-  DB.items.forEach(it=>{ if(!toolSlots.includes(it.slot))return; const t=it.tier||1; (grid[it.slot]=grid[it.slot]||{}); (grid[it.slot][t]=grid[it.slot][t]||[]).push(it.name); });
-  const head=[el('th',{},'Tool')]; for(let t=1;t<=maxTier;t++) head.push(el('th',{},'T'+t));
+  DB.items.forEach(it=>{ if(!slots.includes(it.slot))return; const t=it.tier||1; (grid[it.slot]=grid[it.slot]||{}); (grid[it.slot][t]=grid[it.slot][t]||[]).push(it.name); });
+  const head=[el('th',{},'Slot')]; for(let t=1;t<=maxTier;t++) head.push(el('th',{},'T'+t));
   const rows=[el('tr',{},head)];
-  toolSlots.forEach(sl=>{ const cells=[el('td',{class:'cat'}, SLOT_LABELS[sl]||sl)];
+  slots.forEach(sl=>{ const cells=[el('td',{class:'cat'}, SLOT_LABELS[sl]||sl)];
     for(let t=1;t<=maxTier;t++){ const names=(grid[sl]&&grid[sl][t])||[]; const ok=names.length>0;
       cells.push(el('td',{class:ok?'cov-ok':'cov-gap', title:ok?names.join(', '):'missing'}, ok?(names.length>1?('● '+names.length):'●'):'—')); }
     rows.push(el('tr',{},cells)); });
   return el('div',{class:'card'},[
-    el('h2',{},['Tool coverage ', el('span',{class:'help'},'(tool per profession × tier — red = still to make)')]),
+    el('h2',{},[title+' ', el('span',{class:'help'},help)]),
     el('table',{class:'cov-table'}, rows),
   ]);
+}
+// Gear coverage: one equipment piece per slot × tier — spot the gaps.
+function gearCoverageCard(){
+  const gearSlots=(SLOT_GROUPS.find(g=>g.label==='Equipment')||{slots:[]}).slots;
+  return slotCoverageCard(gearSlots, 'Gear coverage', '(equipment slot × tier — red = still to make)');
+}
+// Tool coverage: one tool per profession (tool slot) × tier — spot the gaps.
+function toolCoverageCard(){
+  const toolSlots=(SLOT_GROUPS.find(g=>g.label==='Tools')||{slots:[]}).slots;
+  return slotCoverageCard(toolSlots, 'Tool coverage', '(tool per profession × tier — red = still to make)');
 }
 function itemCard(it,i){
   const chip=el('div',{class:'icon-chip',style:'cursor:default'}); renderIconInto(chip,it.icon,it.name);
