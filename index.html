@@ -28,6 +28,12 @@
   .worldnode.sel{box-shadow:0 0 0 3px var(--green); border-color:var(--green);}
   .wn-name{font-weight:800; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .wn-sub{font-size:10px; color:var(--muted);}
+  .route-editor{margin-top:10px;}
+  .rt-head{font-weight:800; font-size:14px; margin-bottom:6px;}
+  .method-row{padding:8px; border:1px solid var(--rule-soft); border-radius:10px; margin-bottom:8px; background:var(--surface);}
+  .method-row input[type=number]{max-width:76px;}
+  .method-row .m-name{max-width:150px;}
+  .method-row .m-note{width:100%; margin-top:6px;}
   .legend{display:flex; flex-wrap:wrap; gap:12px; margin:6px 0 10px;}
   .legend .dot{display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:5px; vertical-align:middle;}
   .graphwrap{overflow:auto; max-height:74vh; border:1px solid var(--rule-soft); border-radius:12px; background:var(--surface); position:relative;}
@@ -268,7 +274,7 @@ let matFilter = 'all'; // Materials list filter: 'all' or a category name
 // Capture the current form into its draft before the DOM is rebuilt.
 function stashDraft(){ if(paneRead && draft.hasOwnProperty(activeTab)) draft[activeTab] = paneRead(); }
 
-function blankDB(){ return {materials:[], items:[], recipes:[], stations:[], actions:[], kins:[], regions:[], areas:[], rarityProfiles:JSON.parse(JSON.stringify(DEFAULT_PROFILES))}; }
+function blankDB(){ return {materials:[], items:[], recipes:[], stations:[], actions:[], kins:[], regions:[], areas:[], routes:[], rarityProfiles:JSON.parse(JSON.stringify(DEFAULT_PROFILES))}; }
 
 function save(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(DB)); }catch(e){} schedulePush(); }
 function load(){ try{ const s=localStorage.getItem(LS_KEY); if(s){ const d=JSON.parse(s); const migrate=!('recipes' in d); DB=normalizeDB({...blankDB(),...d}, migrate); if(migrate) save(); } }catch(e){ DB=blankDB(); } }
@@ -348,21 +354,41 @@ function normArea(a){ a=a||{}; const name=a.name||a.id||'Area'; return {...a, id
   icon:normIcon(a.icon),
   biome:BIOMES.includes(a.biome)?a.biome:BIOMES[0],
   regionId:a.regionId||'',
+  entryLevel:num(a.entryLevel,0),                             // min player level to enter
   activities:Array.isArray(a.activities)?a.activities.slice():[],
   facilities:Array.isArray(a.facilities)?a.facilities.filter(f=>FACILITIES.some(x=>x.key===f)):[],
   links:Array.isArray(a.links)?a.links.slice():[],            // area connections (World map tab)
   pos:(Array.isArray(a.pos)&&a.pos.length===2)?[num(a.pos[0],0),num(a.pos[1],0)]:null }; }
+// A travel method on a route: a way to get across, with its own cost/gates.
+function normMethod(m){ m=m||{}; const dir=['both','fwd','rev'].includes(m.dir)?m.dir:'both';
+  return { id:m.id||'m1', name:m.name||'', dir, steps:num(m.steps,0), level:num(m.level,0),
+    requiresItems:Array.isArray(m.requiresItems)?m.requiresItems.slice():[], note:m.note||'' }; }
+// A route connects two areas and holds one or more travel methods (see World map tab).
+function normRoute(r){ r=r||{}; const from=r.from||'', to=r.to||'';
+  return { ...r, id:r.id||('route_'+from+'_'+to), from, to,
+    methods:Array.isArray(r.methods)?r.methods.map(normMethod):[] }; }
+// Migrate legacy bare `links` into first-class routes (idempotent): every linked
+// pair with no route yet gets a default "Path" method. Keeps `links` intact.
+function synthRoutes(areas, routes){ const out=routes.slice();
+  const has=(x,y)=>out.some(r=>(r.from===x&&r.to===y)||(r.from===y&&r.to===x));
+  const areaSet=new Set(areas.map(a=>a.id));
+  areas.forEach(a=>{ (a.links||[]).forEach(bid=>{ if(a.id===bid||!areaSet.has(bid)||has(a.id,bid))return;
+    out.push({ id:'route_'+a.id+'_'+bid, from:a.id, to:bid,
+      methods:[{ id:'m1', name:'Path', dir:'both', steps:100, level:0, requiresItems:[], note:'' }] }); }); });
+  return out; }
 function normalizeDB(db, migrate){ db=db||{};
   const materials=(db.materials||[]).map(normMaterial), items=(db.items||[]).map(normItem);
   let stations=(db.stations||[]).map(normStation), recipes=(db.recipes||[]).map(normRecipe);
   if(migrate){ const synth=synthCrafting(items, materials); stations=stations.concat(synth.stations); recipes=recipes.concat(synth.recipes); }
+  const areas=(db.areas||[]).map(normArea);
+  const routes=synthRoutes(areas, (db.routes||[]).map(normRoute));
   return { materials, items, recipes, stations, actions:(db.actions||[]).map(normAction),
     kins:(db.kins||[]).map(normKin),
-    regions:(db.regions||[]).map(normRegion), areas:(db.areas||[]).map(normArea),
+    regions:(db.regions||[]).map(normRegion), areas, routes,
     rarityProfiles:(db.rarityProfiles&&db.rarityProfiles.length?db.rarityProfiles:JSON.parse(JSON.stringify(DEFAULT_PROFILES))).map(normProfile) }; }
 
 // Unique id across all content kinds (for Duplicate).
-function uniqueId(base){ const m={}; ['materials','items','recipes','stations','actions','kins','regions','areas','rarityProfiles'].forEach(k=>DB[k].forEach(e=>m[e.id]=1)); let id=base||'x', n=2; while(m[id]) id=(base||'x')+'_'+(n++); return id; }
+function uniqueId(base){ const m={}; ['materials','items','recipes','stations','actions','kins','regions','areas','routes','rarityProfiles'].forEach(k=>DB[k].forEach(e=>m[e.id]=1)); let id=base||'x', n=2; while(m[id]) id=(base||'x')+'_'+(n++); return id; }
 function dupEntry(kind,i){ const c=JSON.parse(JSON.stringify(DB[kind][i])); c.name=(c.name||'')+' Copy'; c.id=uniqueId(slug(c.name)); DB[kind].push(c); commit(); }
 
 // ── tiny DOM helpers ──────────────────────────────────────────────────────────
@@ -385,7 +411,7 @@ function opt(value,label,sel){const o=new Option(label??value,value); if(sel!=nu
 // id helpers / registry
 function allIds(except){ // {id:kind}
   const m={};
-  ['materials','items','recipes','stations','actions','kins','regions','areas','rarityProfiles'].forEach(k=>DB[k].forEach((e,i)=>{ if(!(k===kindOfTab(activeTab)&&i===except)) m[e.id]=k; }));
+  ['materials','items','recipes','stations','actions','kins','regions','areas','routes','rarityProfiles'].forEach(k=>DB[k].forEach((e,i)=>{ if(!(k===kindOfTab(activeTab)&&i===except)) m[e.id]=k; }));
   return m;
 }
 function kindOfTab(t){ return t==='profiles' ? 'rarityProfiles' : t; } // map tab → DB key
@@ -802,6 +828,7 @@ function paneAreas(root){
 
   const biomeS = el('select',{}); BIOMES.forEach(b=>biomeS.add(opt(b,b))); if(model&&model.biome) biomeS.value=model.biome;
   const regionS = el('select',{}); regionS.add(opt('','— region —')); DB.regions.forEach(r=>regionS.add(opt(r.id,r.name))); if(model&&model.regionId) regionS.value=model.regionId;
+  const entryLvlI = el('input',{type:'number',min:'0',value:model?num(model.entryLevel,0):0});
 
   // Activities this area offers (multi-select from the Actions tab).
   const acts = new Set(model&&Array.isArray(model.activities)?model.activities:[]);
@@ -818,8 +845,8 @@ function paneAreas(root){
 
   function collect(){ const prev = (idx>=0?DB.areas[idx]:null);
     return { name:nameI.value, icon:iconPicker.get(), biome:biomeS.value, regionId:regionS.value,
-      activities:[...acts], facilities:[...facs],
-      links:prev?prev.links:[], pos:prev?prev.pos:null }; } // links/pos set in the World tab
+      entryLevel:num(entryLvlI.value,0), activities:[...acts], facilities:[...facs],
+      links:prev?prev.links:[], pos:prev?prev.pos:null }; } // links/pos/routes set in the World tab
   function doSave(){ const a=collect(); a.name=(a.name||'').trim(); if(!a.name){ alert('Name the area first.'); return; }
     a.id=slug(a.name); const taken=idTaken(a.id, idx); if(taken){ alert('That id ("'+a.id+'") is already used by a '+taken.replace(/s$/,'')+'. Rename it.'); return; }
     if(idx>=0) DB.areas[idx]=a; else DB.areas.push(a); draft.areas=null; edit.areas=-1; rerender(); }
@@ -839,6 +866,7 @@ function paneAreas(root){
       el('h2',{},idx>=0?('Editing area: '+esc(DB.areas[idx].name)):'New area'),
       el('div',{style:'display:flex;gap:14px;align-items:flex-start'},[ iconPicker.element, el('div',{style:'flex:1'},[ el('label',{},'Name'), nameI, idLine ]) ]),
       el('div',{class:'row'},[ el('div',{},[el('label',{},'Biome'),biomeS]), el('div',{},[el('label',{},'Region'),regionS]) ]),
+      el('div',{class:'row'},[ el('div',{},[el('label',{},'Entry level'),entryLvlI]), el('div',{}) ]),
       el('label',{style:'margin-top:10px;display:block'},'Activities (from the Actions tab)'), actsWrap,
       el('label',{style:'margin-top:10px;display:block'},'Facilities'), facsWrap,
       el('div',{class:'help',style:'margin-top:8px'},'Connections between areas are drawn in the World map tab (coming next).'),
@@ -862,7 +890,7 @@ function areaCard(a,i){
   const acts=(a.activities||[]).map(id=>{ const x=DB.actions.find(z=>z.id===id); return x?x.name:id; }).join(', ')||'—';
   const facs=(a.facilities||[]).map(k=>{ const f=FACILITIES.find(z=>z.key===k); return f?f.name:k; }).join(', ')||'—';
   return el('div',{class:'listitem'},[ chip, el('div',{class:'body'},[
-    el('div',{class:'name'},a.name), el('div',{class:'meta'},'id: '+a.id+' · '+a.biome+' · '+regionName),
+    el('div',{class:'name'},a.name), el('div',{class:'meta'},'id: '+a.id+' · '+a.biome+' · '+regionName+(num(a.entryLevel,0)>0?(' · enter Lv '+num(a.entryLevel,0)):'')),
     el('div',{},el('span',{class:'help'},'activities: '+acts)),
     el('div',{},el('span',{class:'help'},'facilities: '+facs)),
     el('div',{class:'acts'},[
@@ -874,8 +902,10 @@ function areaCard(a,i){
 }
 
 /* ============================================================================
-   WORLD MAP — drag areas onto a snapping grid; tap two areas to link/unlink.
+   WORLD MAP — drag areas onto a snapping grid; tap two areas to open the
+   connection between them and author its travel methods (steps / level / items).
 ============================================================================ */
+const EDGE_DEFS='<defs><marker id="arrhead" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L8,3 L0,6 Z" fill="var(--rule)"/></marker></defs>';
 function paneWorld(root){
   const cell=72, cols=26, rows=20, nodeW=104, nodeH=44;
   const W=cols*cell, H=rows*cell;
@@ -907,27 +937,91 @@ function paneWorld(root){
   svg.setAttribute('width',W); svg.setAttribute('height',H);
   svg.setAttribute('style','position:absolute;left:0;top:0;pointer-events:none');
   canvas.append(svg);
+  const editorWrap=el('div',{class:'route-editor'});
 
   const nodeEls={};
-  let selected=null;
+  let selected=null, editingRoute=null;
+
+  const areaById=id=>DB.areas.find(x=>x.id===id);
+  const routeBetween=(x,y)=>DB.routes.find(r=>(r.from===x&&r.to===y)||(r.from===y&&r.to===x));
+  const routeCount=id=>DB.routes.filter(r=>r.from===id||r.to===id).length;
+  const aggDir=r=>{ const ds=new Set((r.methods||[]).map(m=>m.dir||'both')); if(!ds.size||ds.has('both'))return'both'; if(ds.size===1)return[...ds][0]; return'mixed'; };
+  const minSteps=r=>{ const s=(r.methods||[]).map(m=>num(m.steps,0)).filter(x=>x>0); return s.length?Math.min(...s):0; };
 
   function centerOf(a){ const n=nodeEls[a.id]; if(n) return [n.offsetLeft+nodeW/2, n.offsetTop+nodeH/2];
     return [a.pos[0]*cell+cell/2, a.pos[1]*cell+cell/2]; }
   function place(a){ const n=nodeEls[a.id]; n.style.left=(a.pos[0]*cell+cell/2-nodeW/2)+'px'; n.style.top=(a.pos[1]*cell+cell/2-nodeH/2)+'px'; }
-  function refreshSub(ar){ const n=nodeEls[ar.id]; if(!n)return; const sub=n.querySelector('.wn-sub'); if(sub) sub.textContent=ar.biome+(ar.links&&ar.links.length?(' · '+ar.links.length+'🔗'):''); }
-  function drawEdges(){ const seen=new Set(); const out=[];
-    DB.areas.forEach(a=>{ (a.links||[]).forEach(bid=>{ const key=[a.id,bid].sort().join('|'); if(seen.has(key))return; seen.add(key);
-      const b=DB.areas.find(x=>x.id===bid); if(!b)return; const [x1,y1]=centerOf(a),[x2,y2]=centerOf(b);
-      out.push('<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="var(--rule)" stroke-width="3" stroke-linecap="round"/>'); }); });
-    svg.innerHTML=out.join(''); }
-  function toggleLink(a,b){ if(a.id===b.id)return; const i=a.links.indexOf(b.id);
-    if(i>=0){ a.links.splice(i,1); const j=b.links.indexOf(a.id); if(j>=0)b.links.splice(j,1); }
-    else { a.links.push(b.id); b.links.push(a.id); } save(); drawEdges(); refreshSub(a); refreshSub(b); }
+  function refreshSub(ar){ const n=nodeEls[ar.id]; if(!n)return; const sub=n.querySelector('.wn-sub'); if(sub){ const c=routeCount(ar.id); sub.textContent=ar.biome+(c?(' · '+c+'🔗'):''); } }
+  function drawEdges(){ const out=[];
+    DB.routes.forEach(r=>{ const a=areaById(r.from), b=areaById(r.to); if(!a||!b)return;
+      let [x1,y1]=centerOf(a), [x2,y2]=centerOf(b); const dir=aggDir(r); let mk='';
+      if(dir==='fwd'){ mk=' marker-end="url(#arrhead)"'; }
+      else if(dir==='rev'){ [x1,y1,x2,y2]=[x2,y2,x1,y1]; mk=' marker-end="url(#arrhead)"'; }
+      const sel = editingRoute && editingRoute.id===r.id;
+      out.push('<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+(sel?'var(--green)':'var(--rule)')+'" stroke-width="'+(sel?4:3)+'" stroke-linecap="round"'+mk+'/>');
+      const st=minSteps(r); if(st>0){ const mx=(x1+x2)/2, my=(y1+y2)/2;
+        out.push('<rect x="'+(mx-17)+'" y="'+(my-9)+'" width="34" height="16" rx="4" fill="var(--surface)" stroke="var(--rule-soft)"/>');
+        out.push('<text x="'+mx+'" y="'+(my+3)+'" font-size="10" text-anchor="middle" fill="var(--muted)">'+st+'</text>'); } });
+    svg.innerHTML=EDGE_DEFS+out.join(''); }
+
+  function addMethod(r){ let n=1; while((r.methods||[]).some(m=>m.id==='m'+n)) n++;
+    r.methods.push({ id:'m'+n, name:'Path', dir:'both', steps:100, level:0, requiresItems:[], note:'' }); }
+  function openRoute(a,b){ if(a.id===b.id)return; let r=routeBetween(a.id,b.id);
+    if(!r){ r={ id:'route_'+a.id+'_'+b.id, from:a.id, to:b.id, methods:[] }; addMethod(r); DB.routes.push(r);
+      if(!a.links.includes(b.id)) a.links.push(b.id); if(!b.links.includes(a.id)) b.links.push(a.id); }
+    editingRoute=r; save(); drawEdges(); refreshSub(a); refreshSub(b); renderEditor(); }
+  function removeRoute(r){ const i=DB.routes.indexOf(r); if(i>=0)DB.routes.splice(i,1);
+    const a=areaById(r.from), b=areaById(r.to);
+    if(a){ const j=a.links.indexOf(r.to); if(j>=0)a.links.splice(j,1); }
+    if(b){ const k=b.links.indexOf(r.from); if(k>=0)b.links.splice(k,1); }
+    editingRoute=null; save(); drawEdges(); if(a)refreshSub(a); if(b)refreshSub(b); renderEditor(); }
+
+  function methodRow(r,m,mi){ const a=areaById(r.from), b=areaById(r.to);
+    const nameI=el('input',{class:'m-name',placeholder:'e.g. Climb',value:m.name||''}); nameI.oninput=()=>{ m.name=nameI.value; save(); };
+    const dirS=el('select',{}); dirS.add(opt('both',a.name+' ⇄ '+b.name)); dirS.add(opt('fwd',a.name+' → '+b.name)); dirS.add(opt('rev',b.name+' → '+a.name)); dirS.value=m.dir||'both';
+    dirS.onchange=()=>{ m.dir=dirS.value; save(); drawEdges(); };
+    const stepsI=el('input',{type:'number',min:'0',value:num(m.steps,0)}); stepsI.oninput=()=>{ m.steps=num(stepsI.value,0); save(); drawEdges(); };
+    const lvlI=el('input',{type:'number',min:'0',value:num(m.level,0)}); lvlI.oninput=()=>{ m.level=num(lvlI.value,0); save(); };
+    const del=el('button',{class:'danger sm',onclick:()=>{ r.methods.splice(mi,1); save(); drawEdges(); renderEditor(); }},'✕');
+    // required items: pick from a dropdown, show as removable pills (scales past chip walls)
+    const req=Array.isArray(m.requiresItems)?m.requiresItems.slice():[];
+    const pickS=el('select',{}); pickS.add(opt('','+ require an owned item…')); DB.items.forEach(it=>pickS.add(opt(it.id,it.name)));
+    const pills=el('div',{class:'chips'});
+    function renderReq(){ pills.innerHTML=''; if(!req.length){ pills.append(el('span',{class:'help'},'none')); return; }
+      req.forEach((id,ri)=>{ const it=DB.items.find(x=>x.id===id); pills.append(el('span',{class:'pill'},[ (it?it.name:id)+' ',
+        el('button',{class:'danger sm',style:'padding:0 6px;margin-left:4px',onclick:()=>{ req.splice(ri,1); m.requiresItems=req.slice(); save(); renderReq(); }},'✕') ])); }); }
+    pickS.onchange=()=>{ const v=pickS.value; if(v&&!req.includes(v)){ req.push(v); m.requiresItems=req.slice(); save(); renderReq(); } pickS.value=''; };
+    renderReq();
+    const noteI=el('input',{class:'m-note',placeholder:'note (optional)',value:m.note||''}); noteI.oninput=()=>{ m.note=noteI.value; save(); };
+    return el('div',{class:'method-row'},[
+      el('div',{class:'sub-row',style:'gap:6px;flex-wrap:wrap;align-items:center'},[
+        el('label',{class:'help'},'Method'), nameI, el('label',{class:'help'},'Dir'), dirS,
+        el('label',{class:'help'},'Steps'), stepsI, el('label',{class:'help'},'Lv'), lvlI, del ]),
+      el('div',{style:'margin-top:6px'},[ el('label',{class:'help'},'Requires owning (all): '), pickS, pills ]),
+      noteI,
+    ]); }
+
+  function renderEditor(){ editorWrap.innerHTML='';
+    if(!editingRoute){ editorWrap.append(el('div',{class:'help'},'Tap one area, then another, to open the connection between them and author how you travel across it.')); return; }
+    const r=editingRoute, a=areaById(r.from), b=areaById(r.to);
+    if(!a||!b){ editingRoute=null; return renderEditor(); }
+    editorWrap.append(el('div',{class:'card route-editor'},[
+      el('div',{class:'rt-head'}, a.name+'  ⇄  '+b.name),
+      el('div',{class:'help',style:'margin-bottom:8px'},'Each travel method has a step cost, a level requirement, an optional owned-item shortcut, and a direction. Add several to model a choice (long way vs. climb).'),
+      el('div',{}, (r.methods||[]).length?r.methods.map((m,mi)=>methodRow(r,m,mi)):[el('span',{class:'help'},'No travel methods yet.')]),
+      el('div',{class:'bar',style:'margin-top:8px'},[
+        el('button',{class:'ghost sm',onclick:()=>{ addMethod(r); save(); drawEdges(); renderEditor(); }},'+ Add method'),
+        el('button',{class:'danger sm',onclick:()=>{ if(confirm('Remove the whole connection between '+a.name+' and '+b.name+'?')) removeRoute(r); }},'Remove connection'),
+        el('button',{class:'ghost sm',onclick:()=>{ editingRoute=null; drawEdges(); renderEditor(); }},'Close'),
+      ]),
+    ]));
+  }
 
   DB.areas.forEach(a=>{
     const node=el('div',{class:'worldnode',style:`position:absolute;width:${nodeW}px;height:${nodeH}px;border-color:${colorOf(a)}`});
     node.append(el('div',{class:'wn-name'},a.name));
-    node.append(el('div',{class:'wn-sub'}, a.biome + (a.links&&a.links.length?(' · '+a.links.length+'🔗'):'')));
+    const c=routeCount(a.id);
+    node.append(el('div',{class:'wn-sub'}, a.biome + (c?(' · '+c+'🔗'):'')));
     nodeEls[a.id]=node; place(a);
 
     let sx,sy,ox,oy,moved=false,dragging=false;
@@ -943,18 +1037,19 @@ function paneWorld(root){
       } else {
         if(!selected){ selected=a; node.classList.add('sel'); }
         else if(selected.id===a.id){ selected=null; node.classList.remove('sel'); }
-        else { toggleLink(selected,a); const p=nodeEls[selected.id]; if(p)p.classList.remove('sel'); selected=null; }
+        else { const p=nodeEls[selected.id]; if(p)p.classList.remove('sel'); const s=selected; selected=null; openRoute(s,a); }
       }
     });
     canvas.append(node);
   });
-  drawEdges();
+  drawEdges(); renderEditor();
 
   root.append(el('div',{class:'card'},[
-    el('h2',{},['World Map ', el('span',{class:'help'},'('+DB.areas.length+' areas)')]),
-    el('div',{class:'help'},'Drag an area to move it (snaps to the grid). Tap one area then another to link/unlink them. Connections are saved automatically.'),
+    el('h2',{},['World Map ', el('span',{class:'help'},'('+DB.areas.length+' areas · '+DB.routes.length+' connections)')]),
+    el('div',{class:'help'},'Drag an area to move it (snaps to the grid). Tap one area then another to open/create the connection between them. Arrows show one-way methods; the number on a line is its fastest step cost. Saved automatically.'),
     legend,
     el('div',{class:'worldwrap'}, canvas),
+    editorWrap,
   ]));
 }
 /* ============================================================================
@@ -1673,6 +1768,14 @@ function validate(){
   DB.actions.forEach(a=>(a.drops||[]).forEach(d=>produced.add(d.resource)));
   DB.recipes.forEach(r=>{ if(r.outputId) produced.add(r.outputId); });
   DB.materials.forEach(m=>{ if(!produced.has(m.id)) probs.push({level:'warn',msg:'Material "'+m.name+'" has no source (no action drops it and no recipe makes it).'}); });
+  // routes → endpoints / method item requirements
+  const areaIds=new Set(DB.areas.map(a=>a.id));
+  (DB.routes||[]).forEach(r=>{ const lbl=(r.from||'?')+'↔'+(r.to||'?');
+    if(!areaIds.has(r.from)) probs.push({level:'error',msg:'Route "'+lbl+'" starts at area "'+r.from+'", which no area defines.'});
+    if(!areaIds.has(r.to)) probs.push({level:'error',msg:'Route "'+lbl+'" ends at area "'+r.to+'", which no area defines.'});
+    if(!(r.methods||[]).length) probs.push({level:'warn',msg:'Route "'+lbl+'" has no travel methods.'});
+    (r.methods||[]).forEach(m=>{ (m.requiresItems||[]).forEach(id=>{ if(!itemIds.has(id)) probs.push({level:'error',msg:'Route "'+lbl+'" method "'+(m.name||m.id)+'" requires item "'+id+'", which no item defines.'}); }); });
+  });
   return probs;
 }
 function paneValidate(root){
@@ -1691,7 +1794,7 @@ function paneValidate(root){
 /* ============================================================================
    EXPORT / IMPORT
 ============================================================================ */
-function payload(){ return { version:3, rarities:RKEYS, rarityProfiles:DB.rarityProfiles, materials:DB.materials, items:DB.items, recipes:DB.recipes, stations:DB.stations, actions:DB.actions, kins:DB.kins, regions:DB.regions, areas:DB.areas }; }
+function payload(){ return { version:3, rarities:RKEYS, rarityProfiles:DB.rarityProfiles, materials:DB.materials, items:DB.items, recipes:DB.recipes, stations:DB.stations, actions:DB.actions, kins:DB.kins, regions:DB.regions, areas:DB.areas, routes:DB.routes }; }
 function paneExport(root){
   const out=el('textarea',{class:'code',readonly:'true'}); out.value=JSON.stringify(payload(),null,2);
   root.append(el('div',{class:'col'},[ syncCard(), el('div',{class:'card'},[
